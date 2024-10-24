@@ -1,0 +1,5 @@
+# requirements.txt
+
+matplotlib>=3.0
+numpy>=1.17
+tqdm>=4.0
