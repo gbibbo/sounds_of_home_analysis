@@ -6,6 +6,16 @@ This repository contains tools to visualize sound events detected by recorders u
 
 The project is designed to process and visualize sound events detected in the data collected by the experiment's recorders. It uses the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html) to organize and categorize sounds, facilitating the analysis and understanding of acoustic data.
 
+## Interface Preview
+
+Here's a preview of the application interface:
+
+![Application Interface](assets/images/interface.png)
+
+The interface allows you to select different parameters and visualize the results like this:
+
+![Example Plot](assets/images/plot.png)
+
 ## Features
 
 - **User Interface (GUI) with Tkinter**: Allows selection of parameters such as recorders, sound classes, days, and hours to customize the analysis
@@ -17,26 +27,26 @@ The project is designed to process and visualize sound events detected in the da
 
 - Python 3.6 or higher
 - Python libraries:
- - tkinter
- - matplotlib
- - numpy
- - tqdm
+  - tkinter
+  - matplotlib
+  - numpy
+  - tqdm
 - Access to the "Sounds of Home" experiment dataset
 
 ## Installation
 
 1. Clone the repository:
 
-   ```bash
-   git clone https://github.com/gbibbo/sounds_of_home_analysis.git
-   cd sounds_of_home_analysis
-   ```
+    ```bash
+    git clone https://github.com/gbibbo/sounds_of_home_analysis.git
+    cd sounds_of_home_analysis
+    ```
 
 2. Install dependencies:
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 **Note**: Make sure your Python environment is properly configured. Using a virtual environment is recommended.
 
@@ -48,23 +58,54 @@ This project is designed to run with the dataset that can be downloaded from:
 
 Download the dataset and ensure the prediction files (JSON files) are located in the appropriate directory within the project, as specified in the configuration.
 
+## Project Structure
+
+    ```
+    .
+    ├── assets/
+    │   └── images/
+    │       ├── interface.png
+    │       └── plot.png
+    ├── metadata/
+    │   ├── class_labels_indices.csv
+    │   └── ontology.json
+    ├── scripts/
+    │   └── src/
+    │       ├── config.py              # Configuration file with global variables
+    │       ├── main.py                # Application entry point
+    │       ├── data_processing/       # Data loading and processing modules
+    │       │   ├── __init__.py
+    │       │   ├── load_data.py
+    │       │   ├── process_data.py
+    │       │   └── utils.py
+    │       ├── gui/                   # GUI-related modules
+    │       │   ├── __init__.py
+    │       │   └── tkinter_interface.py
+    │       ├── visualization/         # Graph generation modules
+    │       │   ├── __init__.py
+    │       │   └── plot_data.py
+    │       └── tests/                # Unit and integration tests
+    ├── requirements.txt              # Project dependencies
+    └── README.md                     # This file
+    ```
+
 ## Usage
 
 ### Configure the Predictions Directory
 
-In the `src/config.py` file, set the path to the directory containing the JSON prediction files:
+In the `scripts/src/config.py` file, set the path to the directory containing the JSON prediction files:
 
-   ```python
-   PREDICTIONS_ROOT_DIR = 'path/to/predictions'
-   ```
+    ```python
+    PREDICTIONS_ROOT_DIR = 'path/to/predictions'
+    ```
 
 ### Run the Application
 
 Execute the main.py file to start the graphical interface:
 
-   ```bash
-   python src/main.py
-   ```
+    ```bash
+    python scripts/src/main.py
+    ```
 
 ### Select Parameters in the Interface
 
@@ -85,30 +126,11 @@ A graph will be displayed representing the percentage of sound events per hour, 
 
 ### Custom Categories Configuration
 
-You can modify or add categories in the `src/config.py` file, where the `CUSTOM_CATEGORIES` dictionary is defined to adapt the analysis to your needs.
+You can modify or add categories in the `scripts/src/config.py` file, where the `CUSTOM_CATEGORIES` dictionary is defined to adapt the analysis to your needs.
 
 ### AudioSet Ontology
 
 The project uses the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html) to organize sounds. Ensure that ontology files and class mapping are correctly referenced in the code.
-
-## Project Structure
-
-   ```
-   src/
-   ├── config.py              # Configuration file with global variables
-   ├── main.py               # Application entry point
-   ├── gui/                  # GUI-related modules
-   │   └── tkinter_interface.py
-   ├── data_processing/      # Data loading and processing modules
-   │   ├── load_data.py
-   │   ├── process_data.py
-   │   └── utils.py
-   ├── visualization/        # Graph generation modules
-   │   └── plot_data.py
-   ├── tests/               # Unit and integration tests
-   ├── requirements.txt     # Project dependencies
-   └── README.md           # This file
-   ```
 
 ## Contributing
 

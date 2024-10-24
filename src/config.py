@@ -6,8 +6,9 @@ import os
 PREDICTIONS_ROOT_DIR = '/mnt/c/Users/bibbo/Downloads/audioset_tagging_cnn-master/resources/tests'
 
 # Paths to the ontology and class labels files
-ONTOLOGY_PATH = '/mnt/c/Users/bibbo/Downloads/audioset_tagging_cnn-master/metadata/ontology.json'
-CLASS_LABELS_CSV_PATH = '/mnt/c/Users/bibbo/Downloads/audioset_tagging_cnn-master/metadata/class_labels_indices.csv'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ONTOLOGY_PATH = os.path.join(BASE_DIR, '../metadata/ontology.json')
+CLASS_LABELS_CSV_PATH = os.path.join(BASE_DIR, '../metadata/class_labels_indices.csv')
 
 # Confidence threshold for predictions
 CONFIDENCE_THRESHOLD = 0.5  # Default value
