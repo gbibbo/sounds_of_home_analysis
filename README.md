@@ -70,21 +70,21 @@ Download the dataset and ensure the prediction files (JSON files) are located in
     │   ├── class_labels_indices.csv
     │   └── ontology.json
     ├── scripts/
-    │   └── src/
-    │       ├── config.py              # Configuration file with global variables
-    │       ├── main.py                # Application entry point
-    │       ├── data_processing/       # Data loading and processing modules
-    │       │   ├── __init__.py
-    │       │   ├── load_data.py
-    │       │   ├── process_data.py
-    │       │   └── utils.py
-    │       ├── gui/                   # GUI-related modules
-    │       │   ├── __init__.py
-    │       │   └── tkinter_interface.py
-    │       ├── visualization/         # Graph generation modules
-    │       │   ├── __init__.py
-    │       │   └── plot_data.py
-    │       └── tests/                # Unit and integration tests
+    ├── src/
+    │    ├── config.py              # Configuration file with global variables
+    │    ├── main.py                # Application entry point
+    │    ├── data_processing/       # Data loading and processing modules
+    │    │   ├── __init__.py
+    │    │   ├── load_data.py
+    │    │   ├── process_data.py
+    │    │   └── utils.py
+    │    ├── gui/                   # GUI-related modules
+    │    │   ├── __init__.py
+    │    │   └── tkinter_interface.py
+    │    ├── visualization/         # Graph generation modules
+    │    │   ├── __init__.py
+    │    │   └── plot_data.py
+    │    └── tests/                # Unit and integration tests
     ├── requirements.txt              # Project dependencies
     └── README.md                     # This file
     ```
@@ -93,9 +93,9 @@ Download the dataset and ensure the prediction files (JSON files) are located in
 
 ### Configure the Predictions Directory
 
-In the `scripts/src/config.py` file, set the path to the directory containing the JSON prediction files:
+In the `src/config.py` file, set the path to the directory containing the JSON prediction files:
 
-    ```python
+    ```
     PREDICTIONS_ROOT_DIR = 'path/to/predictions'
     ```
 
@@ -103,7 +103,7 @@ In the `scripts/src/config.py` file, set the path to the directory containing th
 
 Execute the main.py file to start the graphical interface:
 
-    ```bash
+    ```
     python scripts/src/main.py
     ```
 
@@ -126,7 +126,7 @@ A graph will be displayed representing the percentage of sound events per hour, 
 
 ### Custom Categories Configuration
 
-You can modify or add categories in the `scripts/src/config.py` file, where the `CUSTOM_CATEGORIES` dictionary is defined to adapt the analysis to your needs.
+You can modify or add categories in the `src/config.py` file, where the `CUSTOM_CATEGORIES` dictionary is defined to adapt the analysis to your needs.
 
 ### AudioSet Ontology
 
