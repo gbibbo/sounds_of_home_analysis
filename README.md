@@ -1,10 +1,10 @@
 # Sounds of Home Analysis
 
-This repository contains tools to visualize sound events detected by recorders used in the "Sounds of Home" experiment. The goal is to provide a user-friendly interface that respects the AudioSet ontology, allowing users to explore and analyze data in a structured and understandable way.
+This repository contains tools to visualize sound events detected by recorders used in the "Sounds of Home" experiment. The goal is to provide a user-friendly interface that respects the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html), allowing users to explore and analyze data in a structured and understandable way.
 
 ## Description
 
-The project is designed to process and visualize sound events detected in the data collected by the experiment's recorders. It uses the AudioSet ontology to organize and categorize sounds, facilitating the analysis and understanding of acoustic data.
+The project is designed to process and visualize sound events detected in the data collected by the experiment's recorders. It uses the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html) to organize and categorize sounds, facilitating the analysis and understanding of acoustic data.
 
 ## Features
 
@@ -89,7 +89,7 @@ You can modify or add categories in the `src/config.py` file, where the `CUSTOM_
 
 ### AudioSet Ontology
 
-The project uses the AudioSet ontology to organize sounds. Ensure that ontology files and class mapping are correctly referenced in the code.
+The project uses the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html) to organize sounds. Ensure that ontology files and class mapping are correctly referenced in the code.
 
 ## Project Structure
 
