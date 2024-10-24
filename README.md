@@ -93,7 +93,7 @@ Download the dataset and ensure the prediction files (JSON files) are located in
 
 ### Configure the Predictions Directory
 
-In the `src/config.py` file, set the path to the directory containing the JSON prediction files:
+In the `src/config.py` file, set the path to the directory containing the JSON prediction files you downloaded:
 
     ```bash
     PREDICTIONS_ROOT_DIR = 'path/to/predictions'
@@ -104,7 +104,7 @@ In the `src/config.py` file, set the path to the directory containing the JSON p
 Execute the main.py file to start the graphical interface:
 
     ```bash
-    python scripts/src/main.py
+    python src/main.py
     ```
 
 ### Select Parameters in the Interface
