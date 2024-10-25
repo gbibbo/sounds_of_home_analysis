@@ -3,17 +3,17 @@
 import src.config as config 
 
 def get_class_id(class_name, class_label_to_id, name_to_class_id):
-    # Intentar obtener el ID directamente
+    # Attempt to obtain the ID directly
     class_id = class_label_to_id.get(class_name.lower())
     if class_id:
         return class_id
     
-    # Si no se encuentra, buscar en name_to_class_id
+    # If not found, search on name_to_class_id
     class_id = name_to_class_id.get(class_name)
     if class_id:
         return class_id
     
-    # Si aún no se encuentra, buscar de forma más flexible
+    # If still not found, search in a more flexible way
     for name, id in name_to_class_id.items():
         if class_name.lower() in name.lower():
             return id

@@ -57,7 +57,7 @@ def plot_data(data_counts, class_label_to_id, id_to_class, parent_to_children, n
                 print(f"  {class_name}: count = 0, percentage = 0.00% (Class ID not found)")
 
 
-    # Generar el gráfico
+    # Generate the graph
     fig, ax = plt.subplots(figsize=(14, 8))
 
     num_hours = len(all_hours)
