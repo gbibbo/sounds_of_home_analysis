@@ -75,8 +75,8 @@ Download the dataset and ensure the prediction files (JSON files) are located in
 ├── setup.py
 ├── src/
 │   ├── __init__.py
-│   ├── batch_analysis.py    # New script for batch analysis
-│   ├── config.py           # Configuration file with global variables
+│   ├── batch_analysis.py     # New script for batch analysis
+│   ├── config.py             # Configuration file with global variables
 │   ├── data_processing/
 │   │   ├── __init__.py
 │   │   ├── load_data.py
@@ -85,14 +85,14 @@ Download the dataset and ensure the prediction files (JSON files) are located in
 │   ├── gui/
 │   │   ├── __init__.py
 │   │   └── tkinter_interface.py
-│   ├── main.py            # Application entry point
-│   ├── plot_results.py    # New script for plotting results
-│   └── visualization/
-│       ├── __init__.py
-│       └── plot_data.py
-└── tests/
-    ├── __init__.py
-    └── test_data_processing.py
+│   ├── main.py               # Application entry point
+│   ├── plot_results.py       # New script for plotting results
+│   ├── visualization/
+│   │   ├── __init__.py
+│   │   └── plot_data.py
+├── tests/
+│   ├── __init__.py
+│   └── test_data_processing.py
 
 **Note**: The directories and files excluded by `.gitignore` (such as sample data and analysis results) are not shown in the project structure.
 
