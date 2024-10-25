@@ -61,6 +61,7 @@ Download the dataset and ensure the prediction files (JSON files) are located in
 
 ## Project Structure
 
+```plaintext
 .
 ├── README.md
 ├── assets/
@@ -93,6 +94,7 @@ Download the dataset and ensure the prediction files (JSON files) are located in
 ├── tests/
 │   ├── __init__.py
 │   └── test_data_processing.py
+```
 
 **Note**: The directories and files excluded by `.gitignore` (such as sample data and analysis results) are not shown in the project structure.
 
