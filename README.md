@@ -1,10 +1,6 @@
 # Sounds of Home Analysis
 
-This repository contains tools to visualize sound events detected by recorders used in the "Sounds of Home" experiment. The goal is to provide a user-friendly interface that respects the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html), allowing users to explore and analyze data in a structured and understandable way.
-
-## Description
-
-The project is designed to process and visualize sound events detected in the data collected by the experiment's recorders. It uses the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html) to organize and categorize sounds, facilitating the analysis and understanding of acoustic data.
+This repository provides tools for visualizing sound events detected by recorders from the "Sounds of Home" experiment. It offers a user-friendly interface that adheres to the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html), enabling users to explore, categorize, and analyze acoustic data in a structured manner.
 
 ## Interface Preview
 
