@@ -3,7 +3,7 @@
 import os
 
 # Root directory containing the recorder folders
-PREDICTIONS_ROOT_DIR = '/mnt/c/Users/bibbo/Downloads/audioset_tagging_cnn-master/resources/tests'
+PREDICTIONS_ROOT_DIR = 'assets/sample_data'
 
 # Paths to the ontology and class labels files
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
