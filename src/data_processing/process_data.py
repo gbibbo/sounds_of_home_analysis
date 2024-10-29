@@ -5,6 +5,7 @@ import json
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import src.config as config
+from src.data_processing.utils import get_ancestors
 from src.data_processing.load_data import (
     load_ontology,
     load_class_labels,
@@ -15,61 +16,59 @@ from src.data_processing.load_data import (
 from tqdm import tqdm  
 
 def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_to_category_info,
-                      parent_to_children, id_to_class, selected_hours, confidence_threshold):
+                      parent_to_children, child_to_parents, selected_hours, confidence_threshold):
     file_counts = {}
     processed_hours = set()
     classes_with_data = set()
-    print('selected_hours = ', selected_hours)
+    is_light = '_light.json' in file_path
+    
     try:
-        # Extract datetime from filename
         filename = os.path.basename(file_path).replace('_light.json', '').replace('.json', '')
         file_datetime = datetime.datetime.strptime(filename.replace('.json', ''), '%Y%m%d_%H%M%S')
-
-        # Process the JSON file
+        
         with open(file_path, 'r') as f:
             data = json.load(f)
-            frame_count = 0
+
             for frame in data:
-                if isinstance(frame, dict) and 'predictions' in frame:  # skip metadata
-                    frame_count += 1
+                if isinstance(frame, dict) and ('predictions' in frame):
                     frame_time = file_datetime + datetime.timedelta(seconds=float(frame.get('time', 0)))
                     hour = frame_time.strftime('%H')
-                    print(f"\nProcessing frame {frame_count} at time {frame.get('time')} in {file_path}")
-                    print(f"Frame predictions:")
+                    
                     if hour in selected_hours:
                         processed_hours.add(hour)
                         predictions = frame.get('predictions', [])
+                        
+                        if hour not in file_counts:
+                            file_counts[hour] = {}
+                        
                         for pred in predictions:
-                            print(f"  {pred.get('class_label')}: {pred.get('probability')}")
-                            class_label = pred.get('class_label') or pred.get('class', '').strip()
-                            score = pred.get('probability') or pred.get('prob', 0)
-                            #print(f"Processing prediction: {class_label} with score {score}")
-                            if score >= confidence_threshold:
+                            if 'class_label' in pred:
+                                class_label = pred['class_label']
+                                score = pred['probability']
+                            else:
+                                class_label = pred['class']
+                                score = pred['prob']
+                            
+                            if class_label and score >= confidence_threshold:
                                 class_id = class_label_to_id.get(class_label.lower())
                                 if class_id:
-                                    if hour not in file_counts:
-                                        file_counts[hour] = {}
-                                    if class_id not in file_counts[hour]:
-                                        file_counts[hour][class_id] = 0
-                                    file_counts[hour][class_id] += 1
-                                    classes_with_data.add(class_id)
-
-        print(f"Processed file: {file_path}")
-        for hour, counts in file_counts.items():
-            print(f"  Hour: {hour}")
-            for class_id, count in counts.items():
-                print(f"    {class_id_to_label.get(class_id, 'Unknown')} : {count}")
+                                    # Obtener ancestros
+                                    ancestors = get_ancestors(class_id, child_to_parents)
+                                    # Añadir la clase actual y sus ancestros
+                                    all_related_ids = ancestors | {class_id}
+                                    
+                                    increment = 32 if is_light else 1
+                                    # Incrementar contadores para la clase y sus ancestros
+                                    for related_id in all_related_ids:
+                                        if related_id not in file_counts[hour]:
+                                            file_counts[hour][related_id] = 0
+                                        file_counts[hour][related_id] += increment
+                                        classes_with_data.add(related_id)
 
     except Exception as e:
         print(f"Error processing file {file_path}: {e}")
         raise
-
-    print(f"\nDetailed counts for {file_path}:")
-    for hour in file_counts:
-        print(f"Hour {hour}:")
-        for class_id, count in file_counts[hour].items():
-            print(f"  Class {class_id_to_label[class_id]}: {count}")
-
+        
     return file_counts, processed_hours, classes_with_data
 
 

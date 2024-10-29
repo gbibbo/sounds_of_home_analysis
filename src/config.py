@@ -3,7 +3,7 @@
 import os
 
 # Root directory containing the recorder folders
-#PREDICTIONS_ROOT_DIR = 'assets/sample_data_light'
+#PREDICTIONS_ROOT_DIR = 'assets/sample_data'
 PREDICTIONS_ROOT_DIR = '/vol/research/datasets/audio/AI4S_SoH/VITALISE data light/Cnn14_DecisionLevelAtt_light'
 
 # Paths to the ontology and class labels files
