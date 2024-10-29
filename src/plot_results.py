@@ -20,10 +20,14 @@ from src.data_processing.utils import get_all_subclasses, get_class_id
 def main():
     # Specify the classes to plot
     classes_to_plot = [
-        'Channel, environment and background',
-        'Acoustic environment',
-        'Noise',
-        'Sound reproduction'
+        #'Channel, environment and background',
+        #'Acoustic environment',
+        #'Noise',
+        #'Sound reproduction'
+        'Human voice',
+        'Human sounds',
+        'Sounds of things',
+        'Music'
     ]
 
     # Specify the threshold to use
@@ -65,7 +69,7 @@ def main():
                 counts_per_hour[hour][class_name] = 0
 
     # Prepare data for plotting
-    hours = [hour.split(' ')[1] for hour in all_hours]  # Extract time part
+    hours = all_hours  # Extract time part
     num_hours = len(hours)
     num_classes = len(classes_to_plot)
     bar_width = 0.8 / num_classes
@@ -88,6 +92,7 @@ def main():
 
     plt.tight_layout()
     plt.show()
+    plt.savefig('output_plot.png')
 
 if __name__ == '__main__':
     main()

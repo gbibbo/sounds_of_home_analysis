@@ -19,9 +19,10 @@ def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_
     file_counts = {}
     processed_hours = set()
     classes_with_data = set()
+    print('selected_hours = ', selected_hours)
     try:
         # Extract datetime from filename
-        filename = os.path.basename(file_path)
+        filename = os.path.basename(file_path).replace('_light.json', '').replace('.json', '')
         file_datetime = datetime.datetime.strptime(filename.replace('.json', ''), '%Y%m%d_%H%M%S')
 
         # Process the JSON file
@@ -29,13 +30,14 @@ def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_
             data = json.load(f)
             for frame in data:
                 frame_time = file_datetime + datetime.timedelta(seconds=float(frame.get('time', 0)))
-                hour = frame_time.strftime('%Y-%m-%d %H:00')
-                if hour in selected_hours:  # Solo procesar las horas seleccionadas
+                hour = frame_time.strftime('%H')
+                if hour in selected_hours:
                     processed_hours.add(hour)
                     predictions = frame.get('predictions', [])
                     for pred in predictions:
-                        class_label = pred.get('class_label', '').strip()
-                        score = pred.get('probability', 0)
+                        class_label = pred.get('class_label') or pred.get('class', '').strip()
+                        score = pred.get('probability') or pred.get('prob', 0)
+                        #print(f"Processing prediction: {class_label} with score {score}")
                         if score >= confidence_threshold:
                             class_id = class_label_to_id.get(class_label.lower())
                             if class_id:
@@ -107,7 +109,9 @@ def load_and_process_data():
             if filename.endswith('.json'):
                 # Extract day and hour information
                 try:
-                    file_datetime = datetime.datetime.strptime(filename.replace('.json', ''), '%Y%m%d_%H%M%S')
+                    # Remove '_light.json' or '.json' from filename
+                    filename_no_ext = filename.replace('_light.json', '').replace('.json', '')
+                    file_datetime = datetime.datetime.strptime(filename_no_ext, '%Y%m%d_%H%M%S')
                     date_str = file_datetime.strftime('%Y%m%d')
                     hour_str = file_datetime.strftime('%Y-%m-%d %H:00')
                 except ValueError as ve:

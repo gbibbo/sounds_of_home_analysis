@@ -17,18 +17,26 @@ from src.data_processing.process_data import load_and_process_data
 def main():
     # Define the thresholds to analyze
     thresholds = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
+    #thresholds = [0.0]
 
     # Get all available recorders
     available_recorders = [rec for rec in os.listdir(config.PREDICTIONS_ROOT_DIR)
                            if os.path.isdir(os.path.join(config.PREDICTIONS_ROOT_DIR, rec))]
     config.SELECTED_RECORDERS = available_recorders
 
-    # Get all available days and hours
+    # Obtain all available days
     available_days_dict = get_available_days(config.PREDICTIONS_ROOT_DIR, available_recorders)
-    config.SELECTED_DAYS = list(available_days_dict.values())
+    available_days_set = set()
+    for days_list in available_days_dict.values():
+        available_days_set.update(days_list)
+    config.SELECTED_DAYS = sorted(available_days_set)
 
+    # Obtain all available hours
     available_hours_dict = get_available_hours(config.PREDICTIONS_ROOT_DIR, available_recorders)
-    config.SELECTED_HOURS = list(available_hours_dict.values())
+    available_hours_set = set()
+    for hours_list in available_hours_dict.values():
+        available_hours_set.update(hours_list)
+    config.SELECTED_HOURS = sorted(available_hours_set)
 
     # Use classes and subclasses from CUSTOM_CATEGORIES in config.py
     config.SELECTED_CLASSES = []
@@ -63,6 +71,7 @@ def main():
             print(f"Analysis for threshold {threshold} completed. Results saved in '{output_file}'.")
         else:
             print(f"No data processed for threshold {threshold}.")
+
 
 if __name__ == '__main__':
     main()

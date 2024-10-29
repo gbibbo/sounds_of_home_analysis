@@ -1,3 +1,5 @@
+# tests/test_data_processing.py
+
 import unittest
 import os
 import sys
@@ -68,7 +70,7 @@ class TestDataProcessing(unittest.TestCase):
                                 'Inside, small room', 'Pink noise', 'Throbbing',
                                 'Hubbub, speech noise, speech babble']
         config.SELECTED_DAYS = ['20231116']
-        config.SELECTED_HOURS = ['2023-11-16 07:00', '2023-11-16 08:00']
+        config.SELECTED_HOURS = ['07', '08']
 
         result = load_and_process_data()
         self.assertIsNotNone(result, "No data processed. Check selected parameters and thresholds.")
@@ -117,7 +119,7 @@ class TestDataProcessing(unittest.TestCase):
                                    'Inside, small room', 'Pink noise', 'Throbbing',
                                    'Hubbub, speech noise, speech babble']
         config.SELECTED_DAYS = ['20231116']
-        config.SELECTED_HOURS = ['2023-11-16 07:00', '2023-11-16 08:00']
+        config.SELECTED_HOURS = ['07', '08']
 
         result = load_and_process_data()
         self.assertIsNotNone(result, "No data processed. Check selected parameters and thresholds.")
@@ -135,7 +137,7 @@ class TestDataProcessing(unittest.TestCase):
                                    'Inside, small room', 'Pink noise', 'Throbbing',
                                    'Hubbub, speech noise, speech babble']
         config.SELECTED_DAYS = ['20231116']
-        config.SELECTED_HOURS = ['2023-11-16 07:00', '2023-11-16 08:00']
+        config.SELECTED_HOURS = ['07', '08']
 
         result = load_and_process_data()
         self.assertIsNotNone(result, "No data processed. Check selected parameters and thresholds.")
