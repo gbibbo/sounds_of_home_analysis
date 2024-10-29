@@ -28,25 +28,31 @@ def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_
         # Process the JSON file
         with open(file_path, 'r') as f:
             data = json.load(f)
+            frame_count = 0
             for frame in data:
-                frame_time = file_datetime + datetime.timedelta(seconds=float(frame.get('time', 0)))
-                hour = frame_time.strftime('%H')
-                if hour in selected_hours:
-                    processed_hours.add(hour)
-                    predictions = frame.get('predictions', [])
-                    for pred in predictions:
-                        class_label = pred.get('class_label') or pred.get('class', '').strip()
-                        score = pred.get('probability') or pred.get('prob', 0)
-                        #print(f"Processing prediction: {class_label} with score {score}")
-                        if score >= confidence_threshold:
-                            class_id = class_label_to_id.get(class_label.lower())
-                            if class_id:
-                                if hour not in file_counts:
-                                    file_counts[hour] = {}
-                                if class_id not in file_counts[hour]:
-                                    file_counts[hour][class_id] = 0
-                                file_counts[hour][class_id] += 1
-                                classes_with_data.add(class_id)
+                if isinstance(frame, dict) and 'predictions' in frame:  # skip metadata
+                    frame_count += 1
+                    frame_time = file_datetime + datetime.timedelta(seconds=float(frame.get('time', 0)))
+                    hour = frame_time.strftime('%H')
+                    print(f"\nProcessing frame {frame_count} at time {frame.get('time')} in {file_path}")
+                    print(f"Frame predictions:")
+                    if hour in selected_hours:
+                        processed_hours.add(hour)
+                        predictions = frame.get('predictions', [])
+                        for pred in predictions:
+                            print(f"  {pred.get('class_label')}: {pred.get('probability')}")
+                            class_label = pred.get('class_label') or pred.get('class', '').strip()
+                            score = pred.get('probability') or pred.get('prob', 0)
+                            #print(f"Processing prediction: {class_label} with score {score}")
+                            if score >= confidence_threshold:
+                                class_id = class_label_to_id.get(class_label.lower())
+                                if class_id:
+                                    if hour not in file_counts:
+                                        file_counts[hour] = {}
+                                    if class_id not in file_counts[hour]:
+                                        file_counts[hour][class_id] = 0
+                                    file_counts[hour][class_id] += 1
+                                    classes_with_data.add(class_id)
 
         print(f"Processed file: {file_path}")
         for hour, counts in file_counts.items():
@@ -57,6 +63,13 @@ def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_
     except Exception as e:
         print(f"Error processing file {file_path}: {e}")
         raise
+
+    print(f"\nDetailed counts for {file_path}:")
+    for hour in file_counts:
+        print(f"Hour {hour}:")
+        for class_id, count in file_counts[hour].items():
+            print(f"  Class {class_id_to_label[class_id]}: {count}")
+
     return file_counts, processed_hours, classes_with_data
 
 
