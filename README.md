@@ -237,11 +237,11 @@ The script can be configured by modifying the `config.py` file located in the `s
 
 Key configuration options include:
 
-`PREDICTIONS_ROOT_DIR`: The root directory containing the recorder folders with prediction JSON files.
-`DEFAULT_CONFIDENCE_THRESHOLD`: The default confidence threshold for filtering predictions.
-`USE_LABEL_QUALITY_THRESHOLDS`: Set to `True` to adjust thresholds based on label quality estimates.
-`GENERATE_GRAPHS`: Set to `False` if you do not wish to generate graphs.
-`CUSTOM_CATEGORIES`: A dictionary defining custom categories and subcategories for analysis.
+- `PREDICTIONS_ROOT_DIR`: The root directory containing the recorder folders with prediction JSON files.
+- `DEFAULT_CONFIDENCE_THRESHOLD`: The default confidence threshold for filtering predictions.
+- `USE_LABEL_QUALITY_THRESHOLDS`: Set to `True` to adjust thresholds based on label quality estimates.
+- `GENERATE_GRAPHS`: Set to `False` if you do not wish to generate graphs.
+- `CUSTOM_CATEGORIES`: A dictionary defining custom categories and subcategories for analysis.
 
 To adjust these settings, open the `config.py` file and modify the variables as needed.
 
