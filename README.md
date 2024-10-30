@@ -215,6 +215,8 @@ This script is particularly useful for:
 - Analyzing the hierarchical relationships of sound classes.
 - Generating visualizations for better interpretation of sound event data.
 
+![Events Statistics](analysis_results/events_statistics_results/main_categories.png)
+
 ### Features
 
 - **Processes multiple JSON prediction files** to aggregate sound event data.
