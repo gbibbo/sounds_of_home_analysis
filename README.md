@@ -217,11 +217,21 @@ This script is particularly useful for:
 
 ### Features
 
-- **Processes predictions from multiple JSON files**: Efficiently reads and aggregates data from multiple prediction files.
-- **Handles hierarchical relationships using AudioSet ontology**: Leverages the hierarchical structure of the AudioSet ontology to provide insights at different levels.
-- **Applies quality-based confidence thresholds**: Allows adjusting thresholds based on label quality estimates.
-- **Generates statistics at category, subcategory, and hierarchical levels**: Provides detailed counts and distributions of sound events.
-- **Creates visualization plots**: Generates bar plots for categories and subcategories to aid in data interpretation.
+- **Processes multiple JSON prediction files** to aggregate sound event data.
+- **Handles hierarchical relationships** using the AudioSet ontology.
+- **Applies adjustable confidence thresholds**, including label quality-based thresholds.
+- **Generates statistics** at category and subcategory levels.
+- **Creates visualizations** like bar charts for easier interpretation.
+
+### Configuration
+
+Adjust settings in `src/config.py` if necessary:
+
+- `PREDICTIONS_ROOT_DIR`: Path to the directory containing prediction JSON files.
+- `DEFAULT_CONFIDENCE_THRESHOLD`: Confidence threshold for filtering predictions.
+- `USE_LABEL_QUALITY_THRESHOLDS`: Set to `True`  to adjust thresholds based on label quality.
+- `GENERATE_GRAPHS`: Set to `False` to generate visualization graphs.
+- `CUSTOM_CATEGORIES`: Dictionary defining custom categories and subcategories.
 
 ### Usage
 
@@ -231,25 +241,22 @@ To run the `events_statistics.py` script, navigate to the project root directory
 python scripts/events_statistics.py
 ```
 
-### Configuration
+### Output
 
-The script can be configured by modifying the `config.py` file located in the `src/` directory.
+- **Statistical results** saved in `events_statistics_results.json`.
 
-Key configuration options include:
+- **Visualization plots** saved in `assets/images/`:
 
-- `PREDICTIONS_ROOT_DIR`: The root directory containing the recorder folders with prediction JSON files.
-- `DEFAULT_CONFIDENCE_THRESHOLD`: The default confidence threshold for filtering predictions.
-- `USE_LABEL_QUALITY_THRESHOLDS`: Set to `True` to adjust thresholds based on label quality estimates.
-- `GENERATE_GRAPHS`: Set to `False` if you do not wish to generate graphs.
-- `CUSTOM_CATEGORIES`: A dictionary defining custom categories and subcategories for analysis.
+- - `main_categories.png`: Bar chart showing percentages of main categories.
+- - `subcategories_<category_name>.png`: Bar charts for subcategories within each main category.
+- **Console output**: Detailed statistics and summaries printed to the console.
 
-To adjust these settings, open the `config.py` file and modify the variables as needed.
+#### Notes
 
-To generate statistics and visualizations using the default settings:
-
-```bash
-python scripts/events_statistics.py
-```
+- **Data Preparation**: Ensure prediction JSON files are correctly formatted and located in `PREDICTIONS_ROOT_DIR`.
+- **Ontology and Labels**: The script uses `ontology.json` and `class_labels_indices.csv` from the `metadata/` directory.
+- **Customization**: Modify `CUSTOM_CATEGORIES` in `config.py` to suit your analysis needs.
+- **Visualization**: Generated plots can be used for presentations or further analysis.
 
 ## Contributing
 
