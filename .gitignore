@@ -6,5 +6,5 @@ assets/sample_data_light/01/*.WAV
 assets/sample_data_light/01/*.json
 assets/sample_data_light/02/*.WAV
 assets/sample_data_light/02/*.json
-assets/sample_data/01/.nfs*
-src/sounds_of_home_analysis.egg-info/.txt*
+assets/sample_data/01/*.nfs*
+src/sounds_of_home_analysis.egg-info/*.txt
