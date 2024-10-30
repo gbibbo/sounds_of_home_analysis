@@ -1,16 +1,25 @@
 {
+    "hierarchical_counts": {
+        "Human sounds": 6149338,
+        "Animal": 3452501,
+        "Music": 684750,
+        "Natural sounds": 282500,
+        "Sounds of things": 8592448,
+        "Source-ambiguous sounds": 13412590,
+        "Channel, environment and background": 20907000
+    },
     "category_counts": {
-        "Human sounds": 12095060,
+        "Human sounds": 12012984,
         "Channel, environment and background": 20923667,
-        "Music": 3808097,
-        "Animal": 7762447,
-        "Sounds of things": 11594173,
-        "Natural sounds": 536142,
-        "Source-ambiguous sounds": 11490392
+        "Music": 3890173,
+        "Animal": 6989210,
+        "Sounds of things": 10234491,
+        "Source-ambiguous sounds": 13844196,
+        "Natural sounds": 315257
     },
     "subcategory_counts": {
         "Human sounds": {
-            "Human voice": 8548573,
+            "Human voice": 8466497,
             "Respiratory sounds": 3172589,
             "Whistling": 767,
             "Human locomotion": 229865,
@@ -26,8 +35,8 @@
         },
         "Music": {
             "Music": 2248844,
-            "Musical instrument": 1370736,
-            "Music genre": 165714,
+            "Musical instrument": 1393759,
+            "Music genre": 224767,
             "Music mood": 13574,
             "Music role": 9218,
             "Musical concepts": 11
@@ -35,37 +44,37 @@
         "Animal": {
             "Animal": 1780210,
             "Domestic animals, pets": 1818644,
-            "Wild animals": 3907105,
-            "Livestock, farm animals, working animals": 256488
+            "Wild animals": 3150473,
+            "Livestock, farm animals, working animals": 239883
         },
         "Sounds of things": {
-            "Alarm": 99357,
-            "Domestic sounds, home sounds": 4279441,
-            "Liquid": 582804,
-            "Mechanisms": 3371947,
+            "Alarm": 92864,
+            "Domestic sounds, home sounds": 4216510,
+            "Mechanisms": 2452250,
             "Bell": 72597,
-            "Vehicle": 2252149,
-            "Tools": 173908,
-            "Miscellaneous sources": 22844,
-            "Wood": 286844,
-            "Engine": 351082,
+            "Liquid": 209659,
+            "Vehicle": 2296057,
+            "Engine": 315169,
+            "Miscellaneous sources": 19246,
+            "Wood": 286533,
+            "Tools": 172406,
             "Glass": 82899,
             "Specific impact sounds": 4820,
             "Explosion": 13481
         },
-        "Natural sounds": {
-            "Water": 481354,
-            "Wind": 30961,
-            "Fire": 14549,
-            "Thunderstorm": 9278
-        },
         "Source-ambiguous sounds": {
-            "Onomatopoeia": 2020093,
+            "Onomatopoeia": 4311976,
             "Other sourceless": 16758,
             "Silence": 9191030,
+            "Generic impact sounds": 112709,
             "Surface contact": 199090,
-            "Generic impact sounds": 50788,
             "Deformable shell": 12633
+        },
+        "Natural sounds": {
+            "Water": 265655,
+            "Wind": 30961,
+            "Fire": 9363,
+            "Thunderstorm": 9278
         }
     }
 }
