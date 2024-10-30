@@ -1,0 +1,71 @@
+{
+    "category_counts": {
+        "Human sounds": 12095060,
+        "Channel, environment and background": 20923667,
+        "Music": 3808097,
+        "Animal": 7762447,
+        "Sounds of things": 11594173,
+        "Natural sounds": 536142,
+        "Source-ambiguous sounds": 11490392
+    },
+    "subcategory_counts": {
+        "Human sounds": {
+            "Human voice": 8548573,
+            "Respiratory sounds": 3172589,
+            "Whistling": 767,
+            "Human locomotion": 229865,
+            "Hands": 39371,
+            "Digestive": 61404,
+            "Human group actions": 7767,
+            "Heart sounds, heartbeat": 34724
+        },
+        "Channel, environment and background": {
+            "Sound reproduction": 2579729,
+            "Acoustic environment": 5672749,
+            "Noise": 12671189
+        },
+        "Music": {
+            "Music": 2248844,
+            "Musical instrument": 1370736,
+            "Music genre": 165714,
+            "Music mood": 13574,
+            "Music role": 9218,
+            "Musical concepts": 11
+        },
+        "Animal": {
+            "Animal": 1780210,
+            "Domestic animals, pets": 1818644,
+            "Wild animals": 3907105,
+            "Livestock, farm animals, working animals": 256488
+        },
+        "Sounds of things": {
+            "Alarm": 99357,
+            "Domestic sounds, home sounds": 4279441,
+            "Liquid": 582804,
+            "Mechanisms": 3371947,
+            "Bell": 72597,
+            "Vehicle": 2252149,
+            "Tools": 173908,
+            "Miscellaneous sources": 22844,
+            "Wood": 286844,
+            "Engine": 351082,
+            "Glass": 82899,
+            "Specific impact sounds": 4820,
+            "Explosion": 13481
+        },
+        "Natural sounds": {
+            "Water": 481354,
+            "Wind": 30961,
+            "Fire": 14549,
+            "Thunderstorm": 9278
+        },
+        "Source-ambiguous sounds": {
+            "Onomatopoeia": 2020093,
+            "Other sourceless": 16758,
+            "Silence": 9191030,
+            "Surface contact": 199090,
+            "Generic impact sounds": 50788,
+            "Deformable shell": 12633
+        }
+    }
+}

@@ -1,5 +1,3 @@
-# src/plot_results.py
-
 import os
 import json
 import matplotlib.pyplot as plt
@@ -20,20 +18,16 @@ from src.data_processing.utils import get_all_subclasses, get_class_id
 def main():
     # Specify the classes to plot
     classes_to_plot = [
-        #'Channel, environment and background',
-        #'Acoustic environment',
-        #'Noise',
-        #'Sound reproduction'
-        'Human voice',
+        'Channel, environment and background',
+        'Acoustic environment',
+        'Noise',
+        'Sound reproduction',
         'Human sounds',
         'Sounds of things',
-        'Music'
+        'Channel, environment and background'
     ]
 
-    # Specify the threshold to use
-    threshold = 0.2
-
-    # Path to the results directory and the specific JSON file
+    threshold = 0.3
     results_dir = 'analysis_results'
     input_file = os.path.join(results_dir, f'analysis_results_threshold_{threshold}.json')
 
@@ -41,7 +35,6 @@ def main():
         print(f"The analysis results file '{input_file}' does not exist.")
         return
 
-    # Load the analysis results from the JSON file
     with open(input_file, 'r') as f:
         data = json.load(f)
 
@@ -58,7 +51,6 @@ def main():
 
     # For each hour, compute the counts for each class
     for hour in all_hours:
-        total_events = sum(data_counts[hour].values())
         for class_name in classes_to_plot:
             class_id = get_class_id(class_name, {}, name_to_class_id)
             if class_id:
@@ -69,24 +61,26 @@ def main():
                 counts_per_hour[hour][class_name] = 0
 
     # Prepare data for plotting
-    hours = all_hours  # Extract time part
-    num_hours = len(hours)
-    num_classes = len(classes_to_plot)
-    bar_width = 0.8 / num_classes
-    index = np.arange(num_hours)
+    hours = all_hours
+    class_counts = []
+    for class_name in classes_to_plot:
+        counts = [counts_per_hour[hour].get(class_name, 0) for hour in hours]
+        class_counts.append(counts)
 
-    # Plotting
+    # Create the area plot
     fig, ax = plt.subplots(figsize=(14, 8))
-
-    for i, class_name in enumerate(classes_to_plot):
-        class_counts = [counts_per_hour[hour].get(class_name, 0) for hour in all_hours]
-        positions = index + i * bar_width
-        ax.bar(positions, class_counts, bar_width, label=class_name)
+    
+    # Plot stacked areas
+    ax.fill_between(hours, 0, class_counts[0], label=classes_to_plot[0], alpha=0.7)
+    for i in range(1, len(class_counts)):
+        bottom = np.sum(class_counts[:i], axis=0)
+        ax.fill_between(hours, bottom, bottom + class_counts[i], 
+                       label=classes_to_plot[i], alpha=0.7)
 
     ax.set_xlabel('Hour')
     ax.set_ylabel('Event Counts')
     ax.set_title(f'Sound Events per Hour (Threshold: {threshold})')
-    ax.set_xticks(index + bar_width * (num_classes - 1) / 2)
+    ax.set_xticks(range(len(hours)))
     ax.set_xticklabels(hours, rotation=45, ha='right')
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
