@@ -1,6 +1,6 @@
 # Sounds of Home Analysis
 
-This repository provides tools for visualizing sound events detected by recorders from the [Sounds of Home Dataset](https://www.cvssp.org/data/ai4s/sounds_of_home/). It offers a user-friendly interface that adheres to the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html), enabling users to explore, categorize, and analyze acoustic data in a structured manner.
+This repository provides tools for analyzing and visualizing sound events detected by recorders from the [Sounds of Home Dataset](https://www.cvssp.org/data/ai4s/sounds_of_home/). It offers a user-friendly interface that adheres to the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html), enabling users to explore, categorize, and analyze acoustic data in a structured manner.
 
 ## Interface Preview
 
@@ -15,10 +15,13 @@ The interface allows you to select different parameters and visualize the result
 ## Features
 
 - **User Interface (GUI) with Tkinter**: Allows selection of parameters such as recorders, sound classes, days, and hours to customize the analysis.
-- **Batch Analysis Script**: Perform analyses over all data without opening the GUI, useful for processing large datasets efficiently.
+- **Batch Analysis Script**: Perform analyses over multiple confidence thresholds without opening the GUI.
+- **Events Statistics Generator**: Analyze and generate comprehensive statistics about sound events.
+- **Quality-Based Threshold System**: Adjust confidence thresholds based on AudioSet label quality estimates.
 - **Multiprocessing Support**: Utilizes multiple CPU cores to process large datasets quickly.
-- **Customizable Visualization**: Generates graphs showing the distribution of sound events by hour, including the selected confidence threshold.
-- **AudioSet Ontology Compatibility**: Respects the hierarchy and categories defined in the ontology to organize sound events.
+- **Customizable Visualization**: Generates graphs showing the distribution of sound events by hour and category.
+- **AudioSet Ontology Compatibility**: Respects the hierarchy and categories defined in the ontology.
+- **Comprehensive Testing Suite**: Includes tests for data processing and analysis functions.
 
 ## Requirements
 
@@ -27,7 +30,9 @@ The interface allows you to select different parameters and visualize the result
   - `tkinter`
   - `matplotlib`
   - `numpy`
+  - `pandas`
   - `tqdm`
+  - `multiprocessing`
 - Access to the "Sounds of Home" experiment dataset
 
 ## Installation
@@ -59,37 +64,40 @@ Download the dataset and ensure the prediction files (JSON files) are located in
 
 ```plaintext
 .
-├── README.md
-├── assets/
-│   ├── images/
-│   │   ├── interface.png
-│   │   └── plot.png
-│   └── sample_data/
-├── metadata/
+├── analysis_results
+│   ├── batch_analysis_results
+│   │   └── analysis_results_threshold_*.json
+│   └── events_statistics_results
+│       ├── events_statistics_results.json
+│       ├── main_categories.png
+│       └── subcategories_*.png
+├── assets
+│   └── images
+│       ├── interface.png
+│       └── plot.png
+├── metadata
 │   ├── class_labels_indices.csv
 │   └── ontology.json
+├── README.md
 ├── requirements.txt
+├── scripts
+│   ├── batch_analysis.py
+│   ├── events_statistics.py
+│   ├── main.py
+│   └── plot_results.py
 ├── setup.py
-├── src/
-│   ├── __init__.py
-│   ├── batch_analysis.py     # New script for batch analysis
-│   ├── config.py             # Configuration file with global variables
-│   ├── data_processing/
-│   │   ├── __init__.py
+├── src
+│   ├── config.py
+│   ├── data_processing
 │   │   ├── load_data.py
 │   │   ├── process_data.py
 │   │   └── utils.py
-│   ├── gui/
-│   │   ├── __init__.py
+│   ├── gui
 │   │   └── tkinter_interface.py
-│   ├── main.py               # Application entry point
-│   ├── plot_results.py       # New script for plotting results
-│   ├── visualization/
-│   │   ├── __init__.py
-│   │   └── plot_data.py
-├── tests/
-│   ├── __init__.py
-│   └── test_data_processing.py
+│   └── visualization
+│       └── plot_data.py
+└── tests
+    └── test_data_processing.py
 ```
 
 **Note**: The directories and files excluded by `.gitignore` (such as sample data and analysis results) are not shown in the project structure.
@@ -109,7 +117,7 @@ PREDICTIONS_ROOT_DIR = 'path/to/predictions'
 Execute the `main.py` file to start the graphical interface:
 
 ```bash
-python src/main.py --gui
+python scripts/main.py --gui
 ```
 
 ### Select Parameters in the Interface
@@ -133,12 +141,12 @@ A new script `batch_analysis.py` has been added to perform batch analyses over a
 
 ### Steps to Run Batch Analysis
 
-1. **Ensure the Dataset is Configured**: Make sure that `PREDICTIONS_ROOT_DIR` in `src/config.py` points to the directory containing your dataset.
+1. **Ensure the Dataset is Configured**: Make sure that `PREDICTIONS_ROOT_DIR` in `scripts/config.py` points to the directory containing your dataset.
 
 2. **Run the Batch Analysis Script**:
 
 ```bash
-python src/batch_analysis.py
+python scripts/batch_analysis.py
 ```
 
 ### What to Expect
@@ -158,7 +166,7 @@ A new script `plot_results.py` has been added to generate plots using the result
 
 2. **Specify Classes and Threshold in `plot_results.py`**:
 
-At the beginning of `src/plot_results.py`, you can specify the classes you want to plot and the threshold value:
+At the beginning of `scripts/plot_results.py`, you can specify the classes you want to plot and the threshold value:
 
 ```python
 # Classes to plot
@@ -176,7 +184,7 @@ threshold = 0.2
 3. **Run the Plotting Script**:
 
 ```bash
-python src/plot_results.py
+python scripts/plot_results.py
 ```
 
 ### What to Expect
@@ -197,9 +205,51 @@ python src/plot_results.py
 
 You can modify or add categories in the `src/config.py` file, where the `CUSTOM_CATEGORIES` dictionary is defined to adapt the analysis to your needs. This affects both the GUI and the batch analysis scripts.
 
-### AudioSet Ontology
+## events_statistics.py
 
-The project uses the AudioSet ontology to organize sounds. Ensure that ontology files and class mapping are correctly referenced in the code.
+The `events_statistics.py` script processes and analyzes sound event predictions based on the AudioSet ontology. It generates statistical information about the occurrence of different sound categories and their hierarchical relationships in the analyzed audio recordings.
+
+This script is particularly useful for:
+
+- Understanding the distribution of sound events in your dataset.
+- Analyzing the hierarchical relationships of sound classes.
+- Generating visualizations for better interpretation of sound event data.
+
+### Features
+
+- **Processes predictions from multiple JSON files**: Efficiently reads and aggregates data from multiple prediction files.
+- **Handles hierarchical relationships using AudioSet ontology**: Leverages the hierarchical structure of the AudioSet ontology to provide insights at different levels.
+- **Applies quality-based confidence thresholds**: Allows adjusting thresholds based on label quality estimates.
+- **Generates statistics at category, subcategory, and hierarchical levels**: Provides detailed counts and distributions of sound events.
+- **Creates visualization plots**: Generates bar plots for categories and subcategories to aid in data interpretation.
+
+### Usage
+
+To run the `events_statistics.py` script, navigate to the project root directory and execute:
+
+```bash
+python scripts/events_statistics.py
+```
+
+### Configuration
+
+The script can be configured by modifying the `config.py` file located in the `src/` directory.
+
+Key configuration options include:
+
+`PREDICTIONS_ROOT_DIR`: The root directory containing the recorder folders with prediction JSON files.
+`DEFAULT_CONFIDENCE_THRESHOLD`: The default confidence threshold for filtering predictions.
+`USE_LABEL_QUALITY_THRESHOLDS`: Set to `True` to adjust thresholds based on label quality estimates.
+`GENERATE_GRAPHS`: Set to `False` if you do not wish to generate graphs.
+`CUSTOM_CATEGORIES`: A dictionary defining custom categories and subcategories for analysis.
+
+To adjust these settings, open the `config.py` file and modify the variables as needed.
+
+To generate statistics and visualizations using the default settings:
+
+```bash
+python scripts/events_statistics.py
+```
 
 ## Contributing
 
