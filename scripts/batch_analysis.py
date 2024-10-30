@@ -1,11 +1,11 @@
-# src/batch_analysis.py
+# scripts/batch_analysis.py
 
 import sys
 import os
 import json
 
 # Add the root directory of the project to the PATH
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import src.config as config
 

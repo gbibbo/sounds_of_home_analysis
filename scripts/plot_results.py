@@ -1,16 +1,16 @@
-# src/plot_results.py
+# scripts/plot_results.py
 
 import os
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-import sys
+#import sys
 import os
 import json
 
 # Add the root directory of the project to the PATH
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import configurations and utility functions
 import src.config as config
@@ -22,15 +22,11 @@ def main():
     classes_to_plot = [
         'Channel, environment and background',
         'Acoustic environment',
-        'Noise',
-        'Sound reproduction',
-        'Human sounds',
-        'Sounds of things',
-        'Channel, environment and background'
+        'Noise'
     ]
 
     threshold = 0.3
-    results_dir = 'analysis_results'
+    results_dir = 'analysis_results/batch_analysis_results'
     input_file = os.path.join(results_dir, f'analysis_results_threshold_{threshold}.json')
 
     if not os.path.exists(input_file):
@@ -88,7 +84,7 @@ def main():
 
     plt.tight_layout()
     plt.show()
-    plt.savefig('output_plot.png')
+    plt.savefig('assets/images/plot.png')
 
 if __name__ == '__main__':
     main()

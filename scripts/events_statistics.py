@@ -1,4 +1,4 @@
-# src/events_statistics.py
+# scripts/events_statistics.py
 
 """
 The Sounds of Home Event Statistics Generator

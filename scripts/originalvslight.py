@@ -1,4 +1,4 @@
-# src/originalvslight.py
+# scripts/originalvslight.py
 
 import os
 import json

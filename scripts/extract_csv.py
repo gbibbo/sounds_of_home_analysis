@@ -1,4 +1,4 @@
-# src/extract_csv.py
+# scripts/extract_csv.py
 
 import requests
 from bs4 import BeautifulSoup
