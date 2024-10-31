@@ -11,8 +11,8 @@ setup(
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     url='https://github.com/gbibbo/sounds_of_home_analysis',
-    packages=find_packages(where='src'),
-    package_dir={'': 'src'},
+    packages=['src'] + ['src.' + pkg for pkg in find_packages(where='src')],
+    package_dir={'src': 'src'},
     include_package_data=True,
     install_requires=[
         'matplotlib>=3.0',

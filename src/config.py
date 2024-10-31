@@ -15,6 +15,13 @@ CLASS_LABELS_CSV_PATH = os.path.join(BASE_DIR, '../metadata/class_labels_indices
 CONFIDENCE_THRESHOLD = 0.5  # Default value
 CONFIDENCE_THRESHOLD_STR = '0.5'  # Default string value
 
+# Default confidence threshold for labels with 100% quality estimation
+DEFAULT_CONFIDENCE_THRESHOLD = 0.5  # You can change this value as needed
+USE_LABEL_QUALITY_THRESHOLDS = False  # Set to True to use variable thresholds
+
+# Path to the label quality estimates file
+LABEL_QUALITY_ESTIMATES_PATH = os.path.join(BASE_DIR, '../metadata/audioset_data.csv')
+
 # User-configurable parameters
 SELECTED_RECORDERS = []  # Will be populated dynamically based on available directories
 SELECTED_DAYS = []  # Will be dynamically populated based on available data

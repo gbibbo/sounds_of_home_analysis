@@ -1,5 +1,7 @@
 # src/data_processing/utils.py
 
+import os
+import datetime
 import src.config as config 
 
 def get_class_id(class_name, class_label_to_id, name_to_class_id):
@@ -41,3 +43,46 @@ def get_ancestors(class_id, child_to_parents, memo=None):
         ancestors.update(get_ancestors(parent_id, child_to_parents, memo))
     memo[class_id] = ancestors
     return ancestors
+
+def extract_datetime_from_filename(filename):
+    # Remove file extension
+    filename_no_ext, ext = os.path.splitext(filename)
+    # Remove '_light' termination if present
+    if filename_no_ext.endswith('_light'):
+        filename_no_ext = filename_no_ext[:-6]
+    # Extract datetime
+    try:
+        file_datetime = datetime.datetime.strptime(filename_no_ext, '%Y%m%d_%H%M%S')
+    except ValueError as ve:
+        print(f"Error parsing date from file {filename}: {ve}")
+        return None
+    return file_datetime
+
+
+def get_available_days(predictions_root_dir, recorders):
+    available_days = {}
+    for recorder in recorders:
+        recorder_dir = os.path.join(predictions_root_dir, recorder)
+        days_set = set()
+        for filename in os.listdir(recorder_dir):
+            if filename.endswith('.json'):
+                file_datetime = extract_datetime_from_filename(filename)
+                if file_datetime:
+                    date_str = file_datetime.strftime('%Y%m%d')
+                    days_set.add(date_str)
+        available_days[recorder] = sorted(days_set)
+    return available_days
+
+def get_available_hours(predictions_root_dir, recorders):
+    available_hours = {}
+    for recorder in recorders:
+        recorder_dir = os.path.join(predictions_root_dir, recorder)
+        hours_set = set()
+        for filename in os.listdir(recorder_dir):
+            if filename.endswith('.json'):
+                file_datetime = extract_datetime_from_filename(filename)
+                if file_datetime:
+                    hour_str = file_datetime.strftime('%H')
+                    hours_set.add(hour_str)
+        available_hours[recorder] = sorted(hours_set)
+    return available_hours

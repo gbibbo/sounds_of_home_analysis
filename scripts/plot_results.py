@@ -5,86 +5,92 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-#import sys
-import os
-import json
-
-# Add the root directory of the project to the PATH
-#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 # Import configurations and utility functions
 import src.config as config
-from src.data_processing.load_data import load_ontology, build_mappings, build_parent_child_mappings
+from src.data_processing.load_data import (
+    load_ontology,
+    build_mappings,
+    build_parent_child_mappings,
+    load_class_labels
+)
 from src.data_processing.utils import get_all_subclasses, get_class_id
 
-def main():
-    # Specify the classes to plot
-    classes_to_plot = [
-        'Channel, environment and background',
-        'Acoustic environment',
-        'Noise'
-    ]
+def plot_results(data_counts, selected_recorders, selected_classes, threshold_str, recorder_info):
+    """
+    Generates a stacked area plot for the selected classes and recorders.
 
-    threshold = 0.3
-    results_dir = 'analysis_results/batch_analysis_results'
-    input_file = os.path.join(results_dir, f'analysis_results_threshold_{threshold}.json')
-
-    if not os.path.exists(input_file):
-        print(f"The analysis results file '{input_file}' does not exist.")
-        return
-
-    with open(input_file, 'r') as f:
-        data = json.load(f)
-
-    data_counts = data['data_counts']
-
+    Args:
+        data_counts (dict): Nested dictionary with counts per recorder and hour.
+        selected_recorders (list): List of selected recorder IDs.
+        selected_classes (list): List of selected class names.
+        threshold_str (str): Threshold value used, as a string.
+        recorder_info (str): Information about the recorders used.
+    """
     # Load ontology and mappings
     ontology = load_ontology(config.ONTOLOGY_PATH)
+    class_label_to_id, class_id_to_label = load_class_labels(config.CLASS_LABELS_CSV_PATH)
     id_to_class, name_to_class_id = build_mappings(ontology)
     parent_to_children, child_to_parents = build_parent_child_mappings(ontology)
 
     # Prepare data for plotting
-    all_hours = sorted(data_counts.keys())
-    counts_per_hour = {hour: {} for hour in all_hours}
+    counts_per_hour = {}
 
-    # For each hour, compute the counts for each class
-    for hour in all_hours:
-        for class_name in classes_to_plot:
-            class_id = get_class_id(class_name, {}, name_to_class_id)
-            if class_id:
-                all_related_ids = get_all_subclasses(class_id, parent_to_children)
-                class_count = sum(data_counts[hour].get(cid, 0) for cid in all_related_ids)
-                counts_per_hour[hour][class_name] = class_count
-            else:
-                counts_per_hour[hour][class_name] = 0
+    # Aggregate counts over selected recorders
+    for recorder in selected_recorders:
+        recorder_data = data_counts.get(recorder, {})
+        for hour in recorder_data:
+            if hour not in counts_per_hour:
+                counts_per_hour[hour] = {}
+            for class_id, count in recorder_data[hour].items():
+                if class_id not in counts_per_hour[hour]:
+                    counts_per_hour[hour][class_id] = 0
+                counts_per_hour[hour][class_id] += count
 
     # Prepare data for plotting
-    hours = all_hours
-    class_counts = []
-    for class_name in classes_to_plot:
-        counts = [counts_per_hour[hour].get(class_name, 0) for hour in hours]
-        class_counts.append(counts)
+    all_hours = sorted(counts_per_hour.keys(), key=lambda x: int(x))
+    counts_per_class_per_hour = {hour: {} for hour in all_hours}
 
-    # Create the area plot
+    # For each hour, compute the counts for each selected class
+    for hour in all_hours:
+        for class_name in selected_classes:
+            class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
+            if class_id:
+                # Get all subclasses (including the class itself)
+                all_related_ids = get_all_subclasses(class_id, parent_to_children)
+                class_count = sum(counts_per_hour[hour].get(cid, 0) for cid in all_related_ids)
+                counts_per_class_per_hour[hour][class_name] = class_count
+            else:
+                counts_per_class_per_hour[hour][class_name] = 0
+
+    # Prepare data arrays for plotting
+    hours = sorted(all_hours, key=lambda x: int(x))
+    x_values = range(len(hours))
+    class_counts_list = []
+    for class_name in selected_classes:
+        counts = [counts_per_class_per_hour[hour].get(class_name, 0) for hour in hours]
+        class_counts_list.append(counts)
+    class_counts = np.array(class_counts_list)
+
+    # Create the stacked area plot
     fig, ax = plt.subplots(figsize=(14, 8))
-    
+
     # Plot stacked areas
-    ax.fill_between(hours, 0, class_counts[0], label=classes_to_plot[0], alpha=0.7)
-    for i in range(1, len(class_counts)):
-        bottom = np.sum(class_counts[:i], axis=0)
-        ax.fill_between(hours, bottom, bottom + class_counts[i], 
-                       label=classes_to_plot[i], alpha=0.7)
+    bottom = np.zeros(len(hours))
+    for i, class_name in enumerate(selected_classes):
+        counts = class_counts[i]
+        ax.fill_between(x_values, bottom, bottom + counts, label=class_name, alpha=0.7)
+        bottom += counts
 
     ax.set_xlabel('Hour')
     ax.set_ylabel('Event Counts')
-    ax.set_title(f'Sound Events per Hour (Threshold: {threshold})')
-    ax.set_xticks(range(len(hours)))
+    ax.set_title(f'Sound Events per Hour ({recorder_info}, Threshold: {threshold_str})')
+    ax.set_xticks(x_values)
     ax.set_xticklabels(hours, rotation=45, ha='right')
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
     plt.tight_layout()
-    plt.show()
-    plt.savefig('assets/images/plot.png')
 
-if __name__ == '__main__':
-    main()
+    # Ensure the output directory exists
+    os.makedirs('assets/images', exist_ok=True)
+    plt.savefig('assets/images/plot.png')
+    plt.show()

@@ -1,229 +1,219 @@
 # src/gui/tkinter_interface.py
 
 import os
-import datetime
-import traceback
 import tkinter as tk
 from tkinter import ttk, messagebox
-from src.data_processing.process_data import load_and_process_data
-from src.visualization.plot_data import plot_data
 import src.config as config
+from scripts.plot_results import plot_results  # Ensure this function exists and is correctly imported
+import json
 
-# Tkinter UI for selecting variables and triggering analysis
 def run_tkinter_interface():
-    # Determine the available recorders based on directories
-    available_recorders = [rec for rec in os.listdir(config.PREDICTIONS_ROOT_DIR)
-                           if os.path.isdir(os.path.join(config.PREDICTIONS_ROOT_DIR, rec))]
+    # List of all 14 recorders
+    all_recorders = [f"{i:02d}" for i in range(1, 15)]
+    KITCHEN_RECORDERS = ['02', '04', '05', '07', '10', '11', '13']
+    LIVING_RECORDERS = ['01', '03', '06', '08', '09', '12', '14']
 
     root = tk.Tk()
     root.title("Audio Analysis Tool")
-    root.geometry("1200x600")  # Adjust the window size for better visibility
+    root.geometry("800x700")  # Adjust window size as needed
+
+    # Style configuration
+    style = ttk.Style(root)
+    style.configure('TButton', background='white', foreground='black')
+    style.map('TButton',
+              background=[('active', 'white')],
+              foreground=[('active', 'black')])
+
+    style.configure('Selected.TButton', background='blue', foreground='white')
 
     # Section for user options
     options_frame = ttk.LabelFrame(root, text="Select Parameters")
-    options_frame.grid(row=0, column=0, padx=10, pady=20, sticky="nsew")
-
-    # Confidence threshold selection
-    ttk.Label(options_frame, text="Confidence Threshold:").grid(row=3, column=0, sticky="w")
-    threshold_var = tk.DoubleVar(value=config.CONFIDENCE_THRESHOLD)
-    threshold_entry = ttk.Entry(options_frame, textvariable=threshold_var)
-    threshold_entry.grid(row=3, column=1, sticky="w", padx=(0, 20))
-
-    # Configure grid to expand
-    root.columnconfigure(0, weight=1)
-    root.rowconfigure(0, weight=1)
-    options_frame.columnconfigure(0, weight=1)
+    options_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
     # Recorders selection
-    ttk.Label(options_frame, text="Recorders:").grid(row=0, column=0, sticky="w")
-    recorders_var = {rec: tk.BooleanVar(value=True) for rec in available_recorders}
-    for idx, (rec, var) in enumerate(recorders_var.items()):
-        ttk.Checkbutton(options_frame, text=rec, variable=var).grid(row=0, column=idx + 1, sticky="w")
+    recorder_frame = ttk.Frame(options_frame)
+    recorder_frame.pack(fill="x", pady=10)
 
-    # Classes selection with hierarchical display
+    ttk.Label(recorder_frame, text="Recorders:").grid(row=0, column=0, sticky="w")
+
+    # Kitchen and Living room options
+    kitchen_var = tk.BooleanVar()
+    living_var = tk.BooleanVar()
+
+    recorder_vars = {rec: tk.BooleanVar(value=False) for rec in all_recorders}
+    recorder_checkboxes = {}
+
+    def update_recorder_selection():
+        # Handle Kitchen selection
+        if kitchen_var.get():
+            for rec in KITCHEN_RECORDERS:
+                recorder_vars[rec].set(True)
+                recorder_checkboxes[rec]['state'] = 'disabled'
+        else:
+            for rec in KITCHEN_RECORDERS:
+                recorder_vars[rec].set(False)
+                recorder_checkboxes[rec]['state'] = 'normal'
+
+        # Handle Living Room selection
+        if living_var.get():
+            for rec in LIVING_RECORDERS:
+                recorder_vars[rec].set(True)
+                recorder_checkboxes[rec]['state'] = 'disabled'
+        else:
+            for rec in LIVING_RECORDERS:
+                recorder_vars[rec].set(False)
+                recorder_checkboxes[rec]['state'] = 'normal'
+
+    # Kitchen and Living Room checkbuttons
+    ttk.Checkbutton(recorder_frame, text="Kitchen", variable=kitchen_var, command=update_recorder_selection).grid(row=1, column=0, sticky="w")
+    ttk.Checkbutton(recorder_frame, text="Living Room", variable=living_var, command=update_recorder_selection).grid(row=2, column=0, sticky="w")
+
+    # Individual recorder checkbuttons
+    for idx, rec in enumerate(all_recorders):
+        var = recorder_vars[rec]
+        cb = ttk.Checkbutton(recorder_frame, text=rec, variable=var)
+        row = idx // 7 + 1
+        col = idx % 7 + 1
+        cb.grid(row=row, column=col, sticky="w")
+        recorder_checkboxes[rec] = cb
+
+    # Threshold selection
+    threshold_frame = ttk.Frame(options_frame)
+    threshold_frame.pack(fill="x", pady=10)
+    ttk.Label(threshold_frame, text="Confidence Threshold:").grid(row=0, column=0, sticky="w")
+
+    # Threshold options
+    threshold_options = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 'variable']
+    threshold_var = tk.StringVar(value='')  # No threshold selected by default
+
+    def select_threshold(value):
+        threshold_var.set(str(value))
+        # Update button styles
+        for btn in threshold_buttons:
+            if btn['text'] == str(value):
+                btn.configure(style='Selected.TButton')
+            else:
+                btn.configure(style='TButton')
+
+    threshold_buttons = []
+    for idx, option in enumerate(threshold_options):
+        btn = ttk.Button(
+            threshold_frame,
+            text=str(option),
+            command=lambda opt=option: select_threshold(opt),
+            style='TButton'
+        )
+        row = idx // 6 + 1
+        col = idx % 6 + 1
+        btn.grid(row=row, column=col, padx=5, pady=5, sticky="w")
+        threshold_buttons.append(btn)
+
+    # Classes selection
     class_vars = {}
-    row_offset = 1
+    class_frame = ttk.Frame(options_frame)
+    class_frame.pack(fill="both", expand=True, pady=10)
+
+    ttk.Label(class_frame, text="Classes:").grid(row=0, column=0, sticky="w")
 
     # Create a frame for classes with a scrollbar
-    classes_frame = ttk.Frame(options_frame)
-    classes_frame.grid(row=row_offset, column=0, columnspan=10, sticky="nsew")
-    options_frame.rowconfigure(row_offset, weight=1)
-    row_offset += 1
-
-    canvas = tk.Canvas(classes_frame)
-    scrollbar = ttk.Scrollbar(classes_frame, orient="vertical", command=canvas.yview)
-    scrollable_frame = ttk.Frame(canvas)
+    classes_canvas = tk.Canvas(class_frame)
+    classes_scrollbar = ttk.Scrollbar(class_frame, orient="vertical", command=classes_canvas.yview)
+    classes_scrollable_frame = ttk.Frame(classes_canvas)
 
     # Bind the scrollbar to the canvas
-    scrollable_frame.bind(
+    classes_scrollable_frame.bind(
         "<Configure>",
-        lambda e: canvas.configure(
-            scrollregion=canvas.bbox("all")
+        lambda e: classes_canvas.configure(
+            scrollregion=classes_canvas.bbox("all")
         )
     )
 
-    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-    canvas.configure(yscrollcommand=scrollbar.set)
+    classes_canvas.create_window((0, 0), window=classes_scrollable_frame, anchor="nw")
+    classes_canvas.configure(yscrollcommand=classes_scrollbar.set)
 
-    canvas.pack(side="left", fill="both", expand=True)
-    scrollbar.pack(side="right", fill="y")
+    classes_canvas.grid(row=1, column=0, sticky="nsew")
+    classes_scrollbar.grid(row=1, column=1, sticky="ns")
 
-    # Populate the class selection checkboxes
+    # Configure grid weights
+    class_frame.columnconfigure(0, weight=1)
+    class_frame.rowconfigure(1, weight=1)
+
+    # Populate the class selection checkboxes in multiple columns
     col = 0
     row = 0
+    max_rows = 20  # Adjust as needed
     for class_name, sub_classes in config.CUSTOM_CATEGORIES.items():
         # Main class checkbox
         class_var = tk.BooleanVar(value=False)
         class_vars[class_name] = class_var
-        ttk.Checkbutton(scrollable_frame, text=class_name, variable=class_var).grid(row=row, column=col, sticky="w")
+        ttk.Checkbutton(classes_scrollable_frame, text=class_name, variable=class_var).grid(row=row, column=col, sticky="w")
         row += 1
 
         # Subclass checkboxes
         for sub_class_name in sub_classes:
             sub_class_var = tk.BooleanVar(value=False)
             class_vars[sub_class_name] = sub_class_var
-            ttk.Checkbutton(scrollable_frame, text="   " + sub_class_name, variable=sub_class_var).grid(row=row, column=col, sticky="w")
+            ttk.Checkbutton(classes_scrollable_frame, text="   " + sub_class_name, variable=sub_class_var).grid(row=row, column=col, sticky="w")
             row += 1
 
-        if row > 20:
+        if row >= max_rows:
             row = 0
             col += 1
 
-    row_offset += 1
-
-    # Days selection
-    row_offset += 1
-    ttk.Label(options_frame, text="Days:").grid(row=row_offset, column=0, sticky="w")
-
-    # Obtain available days based on the files present
-    available_days_dict = get_available_days(config.PREDICTIONS_ROOT_DIR, available_recorders)
-    if not available_days_dict:
-        messagebox.showinfo("No Data", "No data available for selection.")
-        root.destroy()
-        return
-    # Display the days in the desired format
-    day_vars = {display_day: tk.BooleanVar(value=True) for display_day in sorted(available_days_dict.keys())}
-    for idx, (display_day, var) in enumerate(day_vars.items()):
-        ttk.Checkbutton(options_frame, text=display_day, variable=var).grid(row=row_offset, column=idx + 1, sticky="w")
-    row_offset += 1
-
-    # Hours selection
-    row_offset += 1
-    ttk.Label(options_frame, text="Hours:").grid(row=row_offset, column=0, sticky="w")
-    available_hours_dict = get_available_hours(config.PREDICTIONS_ROOT_DIR, available_recorders)
-    # Display the hours in the desired format
-    hour_vars = {display_hour: tk.BooleanVar(value=True) for display_hour in sorted(available_hours_dict.keys())}
-    for idx, (display_hour, var) in enumerate(hour_vars.items()):
-        ttk.Checkbutton(options_frame, text=display_hour, variable=var).grid(row=row_offset, column=idx + 1, sticky="w")
-    row_offset += 1
-    row_offset += 1
-
-    # Button to run the analysis
-    def run_analysis():
-        # Get the threshold string
-        threshold_str = threshold_entry.get()
-        # Validate the input
-        try:
-            threshold_value = float(threshold_str)
-            config.CONFIDENCE_THRESHOLD = threshold_value
-            config.CONFIDENCE_THRESHOLD_STR = threshold_str
-        except ValueError:
-            messagebox.showerror("Input Error", "Please enter a valid number for the confidence threshold.")
+    # Button to generate the plot
+    def generate_plot():
+        selected_threshold = threshold_var.get()
+        if selected_threshold == '':
+            messagebox.showwarning("Selection Error", "Please select a confidence threshold.")
             return
 
-        print(f"\nSelected confidence threshold: {config.CONFIDENCE_THRESHOLD_STR}")
-
-        print("\nSelected classes and subclasses:")
-        for class_name, var in class_vars.items():
-            if var.get():
-                print(f"- {class_name}")
-                if class_name in config.CUSTOM_CATEGORIES:
-                    for subclass in config.CUSTOM_CATEGORIES[class_name]:
-                        if class_vars[subclass].get():
-                            print(f"  - {subclass}")
-
-        # Ensure at least one element is selected in each category
-        if not any(var.get() for var in recorders_var.values()):
+        # Ensure at least one recorder is selected
+        if not any(var.get() for var in recorder_vars.values()):
             messagebox.showwarning("Selection Error", "Please select at least one recorder.")
             return
-        if not any(var.get() for var in day_vars.values()):
-            messagebox.showwarning("Selection Error", "Please select at least one day.")
-            return
-        if not any(var.get() for var in hour_vars.values()):
-            messagebox.showwarning("Selection Error", "Please select at least one hour.")
-            return
+
+        # Ensure at least one class is selected
         if not any(var.get() for var in class_vars.values()):
             messagebox.showwarning("Selection Error", "Please select at least one class.")
             return
 
         # Update selected variables in config
-        config.SELECTED_RECORDERS = [rec for rec, var in recorders_var.items() if var.get()]
+        config.SELECTED_RECORDERS = [rec for rec, var in recorder_vars.items() if var.get()]
         config.SELECTED_CLASSES = [cls for cls, var in class_vars.items() if var.get()]
 
-        # Map selected display days back to processing formats
-        selected_display_days = [display_day for display_day, var in day_vars.items() if var.get()]
-        config.SELECTED_DAYS = [available_days_dict[display_day] for display_day in selected_display_days]
+        # Determine if recorders are from Kitchen or Living Room
+        if kitchen_var.get() and not living_var.get():
+            recorder_info = 'Kitchen recorders'
+        elif living_var.get() and not kitchen_var.get():
+            recorder_info = 'Living Room recorders'
+        elif kitchen_var.get() and living_var.get():
+            recorder_info = 'Kitchen and Living Room recorders'
+        else:
+            # List the selected recorders
+            recorder_info = 'Selected recorders: ' + ', '.join(config.SELECTED_RECORDERS)
 
-        # Map selected display hours back to processing formats
-        selected_display_hours = [display_hour for display_hour, var in hour_vars.items() if var.get()]
-        config.SELECTED_HOURS = [available_hours_dict[display_hour] for display_hour in selected_display_hours]
+        # Load data from the precomputed JSON files
+        threshold_str = selected_threshold
+        if threshold_str == 'variable':
+            input_file = os.path.join('analysis_results/batch_analysis_results', f'analysis_results_threshold_variable.json')
+        else:
+            input_file = os.path.join('analysis_results/batch_analysis_results', f'analysis_results_threshold_{threshold_str}.json')
 
-        # Execute data processing
+        if not os.path.exists(input_file):
+            messagebox.showerror("File Not Found", f"The analysis results file '{input_file}' does not exist.")
+            return
+
+        with open(input_file, 'r') as f:
+            data = json.load(f)
+
+        data_counts = data['data_counts']
+
+        # Call the plotting function from plot_results.py
         try:
-            data_counts, class_label_to_id, id_to_class, parent_to_children, name_to_class_id = load_and_process_data()
-            if data_counts:
-                plot_data(data_counts, class_label_to_id, id_to_class, parent_to_children, name_to_class_id)
-            else:
-                messagebox.showinfo("No Data", "No data available to generate the plot.")
+            plot_results(data_counts, config.SELECTED_RECORDERS, config.SELECTED_CLASSES, threshold_str, recorder_info)
         except Exception as e:
-            # Print the full traceback to the console
-            traceback.print_exc()
-            messagebox.showerror("Error", f"An error occurred during data processing:\n{e}")
+            messagebox.showerror("Error", f"An error occurred while generating the plot:\n{e}")
 
-    ttk.Button(root, text="Run Analysis", command=run_analysis).grid(row=row_offset, column=0, padx=10, pady=20)
+    ttk.Button(root, text="Plot", command=generate_plot).pack(pady=20)
 
     root.mainloop()
-
-def extract_datetime_from_filename(filename):
-    # Remove file extension
-    filename_no_ext, ext = os.path.splitext(filename)
-    # Remove '_light' termination if present
-    if filename_no_ext.endswith('_light'):
-        filename_no_ext = filename_no_ext[:-6]
-    # Extract datetime
-    try:
-        file_datetime = datetime.datetime.strptime(filename_no_ext, '%Y%m%d_%H%M%S')
-    except ValueError as ve:
-        print(f"Error parsing date from file {filename}: {ve}")
-        return None
-    return file_datetime
-
-
-def get_available_days(predictions_root_dir, recorders):
-    available_days = {}
-    for recorder in recorders:
-        recorder_dir = os.path.join(predictions_root_dir, recorder)
-        days_set = set()
-        for filename in os.listdir(recorder_dir):
-            if filename.endswith('.json'):
-                file_datetime = extract_datetime_from_filename(filename)
-                if file_datetime:
-                    date_str = file_datetime.strftime('%Y%m%d')
-                    days_set.add(date_str)
-        available_days[recorder] = sorted(days_set)
-    return available_days
-
-def get_available_hours(predictions_root_dir, recorders):
-    available_hours = {}
-    for recorder in recorders:
-        recorder_dir = os.path.join(predictions_root_dir, recorder)
-        hours_set = set()
-        for filename in os.listdir(recorder_dir):
-            if filename.endswith('.json'):
-                file_datetime = extract_datetime_from_filename(filename)
-                if file_datetime:
-                    hour_str = file_datetime.strftime('%H')
-                    hours_set.add(hour_str)
-        available_hours[recorder] = sorted(hours_set)
-    return available_hours
-

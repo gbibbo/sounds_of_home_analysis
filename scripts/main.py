@@ -6,7 +6,7 @@ import argparse
 import multiprocessing
 
 # Modify the search path to include the root directory of the project
-#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.gui.tkinter_interface import run_tkinter_interface
 

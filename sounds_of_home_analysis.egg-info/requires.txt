@@ -1,0 +1,7 @@
+matplotlib>=3.0
+numpy>=1.17
+tqdm>=4.0
+pandas>=1.0
+requests>=2.0
+beautifulsoup4>=4.0
+lxml>=4.0
