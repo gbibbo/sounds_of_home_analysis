@@ -6,6 +6,7 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import json
 
 def print_recording_times(times_by_recorder):
     """
@@ -23,6 +24,30 @@ def print_recording_times(times_by_recorder):
         formatted_recorder = f"{int(recorder):02d}"
         times_str = ", ".join(times)
         print(f"Recorder {formatted_recorder}: {times_str}")
+
+def save_recorders_active_per_hour(times_by_recorder):
+    """
+    Save the recorders active per hour to a JSON file.
+
+    Args:
+        times_by_recorder (dict): Dictionary mapping recorder IDs to sets of recording times
+    """
+    recorders_active_per_hour = defaultdict(set)
+
+    for recorder, times in times_by_recorder.items():
+        for time in times:
+            hour = time[:2]  # Extract the hour part (HH)
+            recorders_active_per_hour[hour].add(recorder)
+
+    # Convert sets to lists for JSON serialization
+    recorders_active_per_hour = {hour: list(recorders) for hour, recorders in recorders_active_per_hour.items()}
+
+    # Ensure the directory exists
+    os.makedirs('analysis_results/recording_times', exist_ok=True)
+
+    # Save to JSON file
+    with open('analysis_results/recording_times/recorders_active_per_hour.json', 'w') as f:
+        json.dump(recorders_active_per_hour, f, indent=4)
 
 def analyze_recording_times(data_dir):
     """
@@ -57,6 +82,9 @@ def analyze_recording_times(data_dir):
 
     # Print recording times
     print_recording_times(times_by_recorder)
+
+    # Save recorders active per hour to JSON
+    save_recorders_active_per_hour(times_by_recorder)
     
     # Create the visualization
     create_heatmap(times_by_recorder)

@@ -2,6 +2,7 @@
 
 import os
 import json
+from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -15,7 +16,7 @@ from src.data_processing.load_data import (
 )
 from src.data_processing.utils import get_all_subclasses, get_class_id
 
-def plot_results(data_counts, selected_recorders, selected_classes, threshold_str, recorder_info):
+def plot_results(data_counts, selected_recorders, selected_classes, threshold_str, recorder_info, normalize_option):
     """
     Generates a stacked area plot for the selected classes and recorders.
 
@@ -32,33 +33,52 @@ def plot_results(data_counts, selected_recorders, selected_classes, threshold_st
     id_to_class, name_to_class_id = build_mappings(ontology)
     parent_to_children, child_to_parents = build_parent_child_mappings(ontology)
 
+    # Leer el archivo JSON con los grabadores activos por hora
+    recorders_active_per_hour_path = 'analysis_results/recording_times/recorders_active_per_hour.json'
+    with open(recorders_active_per_hour_path, 'r') as f:
+        recorders_active_per_hour = json.load(f)
+
     # Prepare data for plotting
     counts_per_hour = {}
 
     # Aggregate counts over selected recorders
-    for recorder in selected_recorders:
-        recorder_data = data_counts.get(recorder, {})
-        for hour in recorder_data:
-            if hour not in counts_per_hour:
-                counts_per_hour[hour] = {}
-            for class_id, count in recorder_data[hour].items():
-                if class_id not in counts_per_hour[hour]:
-                    counts_per_hour[hour][class_id] = 0
-                counts_per_hour[hour][class_id] += count
+    for hour in data_counts:
+        counts_per_hour[hour] = {}
+        for class_id, count in data_counts[hour].items():
+            counts_per_hour[hour][class_id] = count
 
     # Prepare data for plotting
     all_hours = sorted(counts_per_hour.keys(), key=lambda x: int(x))
     counts_per_class_per_hour = {hour: {} for hour in all_hours}
 
+    # Total number of selected recorders
+    total_recorders = len(selected_recorders)
+    num_recorders_active_per_hour = {}
+    for hour in all_hours:
+        active_recorders = recorders_active_per_hour.get(hour, [])
+        # Filtrar solo los grabadores seleccionados
+        num_active = len(set(active_recorders) & set(selected_recorders))
+        num_recorders_active_per_hour[hour] = num_active
+
     # For each hour, compute the counts for each selected class
     for hour in all_hours:
+        num_recorders_active = num_recorders_active_per_hour.get(hour, 0)
+        if normalize_option:
+            if num_recorders_active == 0:
+                weight = 1
+            else:
+                weight = total_recorders / num_recorders_active
+        else:
+            weight = 1
+
         for class_name in selected_classes:
             class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
             if class_id:
                 # Get all subclasses (including the class itself)
                 all_related_ids = get_all_subclasses(class_id, parent_to_children)
                 class_count = sum(counts_per_hour[hour].get(cid, 0) for cid in all_related_ids)
-                counts_per_class_per_hour[hour][class_name] = class_count
+                adjusted_class_count = class_count * weight
+                counts_per_class_per_hour[hour][class_name] = adjusted_class_count
             else:
                 counts_per_class_per_hour[hour][class_name] = 0
 
@@ -84,8 +104,22 @@ def plot_results(data_counts, selected_recorders, selected_classes, threshold_st
     ax.set_xlabel('Hour')
     ax.set_ylabel('Event Counts')
     ax.set_title(f'Sound Events per Hour ({recorder_info}, Threshold: {threshold_str})')
-    ax.set_xticks(x_values)
-    ax.set_xticklabels(hours, rotation=45, ha='right')
+
+    if not normalize_option:
+        # Añadir fracción de grabadores activos en las etiquetas del eje x
+        xtick_labels = []
+        for hour in hours:
+            num_recorders_active = num_recorders_active_per_hour.get(hour, 0)
+            fraction = f"{num_recorders_active}/{total_recorders}"
+            label = f"{hour}\n({fraction})"
+            xtick_labels.append(label)
+        ax.set_xticks(x_values)
+        ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
+    else:
+        # Etiquetas originales del eje x
+        ax.set_xticks(x_values)
+        ax.set_xticklabels(hours, rotation=45, ha='right')
+
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
     plt.tight_layout()
