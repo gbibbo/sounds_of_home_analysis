@@ -20,7 +20,7 @@ def run_tkinter_interface():
     # Create main window
     root = tk.Tk()
     root.title("Audio Analysis Tool")
-    root.geometry("1100x800")
+    root.geometry("1100x820")
 
     # Configure styles
     style = ttk.Style(root)
@@ -96,6 +96,16 @@ def run_tkinter_interface():
         col = idx % 6 + 1
         btn.grid(row=row, column=col, padx=5, pady=5, sticky="w")
         threshold_buttons.append(btn)
+
+    # Normalization option
+    normalize_frame = ttk.Frame(options_frame)
+    normalize_frame.pack(fill="x", pady=10)
+    normalize_var = tk.BooleanVar(value=False)
+    ttk.Checkbutton(
+        normalize_frame,
+        text="Normalize by active recorders",
+        variable=normalize_var
+    ).pack(side="left", padx=5)
 
     # Class selection section with improved layout
     class_vars = {}
@@ -274,7 +284,8 @@ def run_tkinter_interface():
                 data = json.load(f)
             data_counts = data['data_counts']
             plot_results(data_counts, config.SELECTED_RECORDERS, 
-                       config.SELECTED_CLASSES, threshold_str, recorder_info)
+                       config.SELECTED_CLASSES, threshold_str, recorder_info,
+                       normalize_var.get())
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while generating the plot:\n{e}")
 

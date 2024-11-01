@@ -2,9 +2,18 @@
 
 import os
 import json
-from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
+
+# Normalization Explanation:
+# The normalization adjusts the event counts to account for the varying number of active recorders in each hour.
+# For each hour, we calculate a normalization factor defined as:
+#     norm_factor = total_number_of_selected_recorders / number_of_active_selected_recorders_in_that_hour
+# This factor scales the event counts so that the results represent what would have been detected if all selected recorders were active.
+# The adjusted event count for each class and hour is then calculated as:
+#     adjusted_event_count = original_event_count * norm_factor
+# This method ensures that hours with fewer active recorders are not underrepresented in the analysis,
+# allowing for a fair comparison of event counts across hours with different recorder availability.
 
 # Import configurations and utility functions
 import src.config as config
@@ -16,7 +25,7 @@ from src.data_processing.load_data import (
 )
 from src.data_processing.utils import get_all_subclasses, get_class_id
 
-def plot_results(data_counts, selected_recorders, selected_classes, threshold_str, recorder_info, normalize_option):
+def plot_results(data_counts, selected_recorders, selected_classes, threshold_str, recorder_info, normalize=False):
     """
     Generates a stacked area plot for the selected classes and recorders.
 
@@ -26,6 +35,7 @@ def plot_results(data_counts, selected_recorders, selected_classes, threshold_st
         selected_classes (list): List of selected class names.
         threshold_str (str): Threshold value used, as a string.
         recorder_info (str): Information about the recorders used.
+        normalize (bool): Whether to normalize counts by number of active recorders.
     """
     # Load ontology and mappings
     ontology = load_ontology(config.ONTOLOGY_PATH)
@@ -33,19 +43,27 @@ def plot_results(data_counts, selected_recorders, selected_classes, threshold_st
     id_to_class, name_to_class_id = build_mappings(ontology)
     parent_to_children, child_to_parents = build_parent_child_mappings(ontology)
 
-    # Leer el archivo JSON con los grabadores activos por hora
-    recorders_active_per_hour_path = 'analysis_results/recording_times/recorders_active_per_hour.json'
-    with open(recorders_active_per_hour_path, 'r') as f:
-        recorders_active_per_hour = json.load(f)
+    # Load active recorders information
+    try:
+        with open('analysis_results/recording_times/recorders_active_per_hour.json', 'r') as f:
+            recorders_active = json.load(f)
+    except FileNotFoundError:
+        print("Warning: recorders_active_per_hour.json not found.")
+        recorders_active = {}
 
     # Prepare data for plotting
     counts_per_hour = {}
 
     # Aggregate counts over selected recorders
-    for hour in data_counts:
-        counts_per_hour[hour] = {}
-        for class_id, count in data_counts[hour].items():
-            counts_per_hour[hour][class_id] = count
+    for recorder in selected_recorders:
+        recorder_data = data_counts.get(recorder, {})
+        for hour in recorder_data:
+            if hour not in counts_per_hour:
+                counts_per_hour[hour] = {}
+            for class_id, count in recorder_data[hour].items():
+                if class_id not in counts_per_hour[hour]:
+                    counts_per_hour[hour][class_id] = 0
+                counts_per_hour[hour][class_id] += count
 
     # Prepare data for plotting
     all_hours = sorted(counts_per_hour.keys(), key=lambda x: int(x))
@@ -53,23 +71,25 @@ def plot_results(data_counts, selected_recorders, selected_classes, threshold_st
 
     # Total number of selected recorders
     total_recorders = len(selected_recorders)
-    num_recorders_active_per_hour = {}
-    for hour in all_hours:
-        active_recorders = recorders_active_per_hour.get(hour, [])
-        # Filtrar solo los grabadores seleccionados
-        num_active = len(set(active_recorders) & set(selected_recorders))
-        num_recorders_active_per_hour[hour] = num_active
+    active_recorders_per_hour = {}
+    norm_factors = {}  # Dictionary to store normalization factors per hour
 
-    # For each hour, compute the counts for each selected class
     for hour in all_hours:
-        num_recorders_active = num_recorders_active_per_hour.get(hour, 0)
-        if normalize_option:
-            if num_recorders_active == 0:
-                weight = 1
+        hour_str = str(hour).zfill(2)
+        active_recorders_list = recorders_active.get(hour_str, [])
+        # Filter to only selected recorders
+        active_recorders = [rec for rec in active_recorders_list if rec in selected_recorders]
+        num_active_recorders = len(active_recorders)
+        active_recorders_per_hour[hour] = num_active_recorders
+
+        # Calculate normalization factor if needed
+        norm_factor = 1
+        if normalize:
+            if num_active_recorders > 0:
+                norm_factor = total_recorders / num_active_recorders
             else:
-                weight = total_recorders / num_recorders_active
-        else:
-            weight = 1
+                norm_factor = 1  # Avoid division by zero
+        norm_factors[hour] = norm_factor  # Store the normalization factor
 
         for class_name in selected_classes:
             class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
@@ -77,8 +97,8 @@ def plot_results(data_counts, selected_recorders, selected_classes, threshold_st
                 # Get all subclasses (including the class itself)
                 all_related_ids = get_all_subclasses(class_id, parent_to_children)
                 class_count = sum(counts_per_hour[hour].get(cid, 0) for cid in all_related_ids)
-                adjusted_class_count = class_count * weight
-                counts_per_class_per_hour[hour][class_name] = adjusted_class_count
+                # Apply normalization if enabled
+                counts_per_class_per_hour[hour][class_name] = class_count * norm_factor
             else:
                 counts_per_class_per_hour[hour][class_name] = 0
 
@@ -103,22 +123,26 @@ def plot_results(data_counts, selected_recorders, selected_classes, threshold_st
 
     ax.set_xlabel('Hour')
     ax.set_ylabel('Event Counts')
-    ax.set_title(f'Sound Events per Hour ({recorder_info}, Threshold: {threshold_str})')
+    title = 'Normalized ' if normalize else ''
+    ax.set_title(f'{title}Sound Events per Hour ({recorder_info}, Threshold: {threshold_str})')
 
-    if not normalize_option:
-        # Añadir fracción de grabadores activos en las etiquetas del eje x
-        xtick_labels = []
-        for hour in hours:
-            num_recorders_active = num_recorders_active_per_hour.get(hour, 0)
-            fraction = f"{num_recorders_active}/{total_recorders}"
-            label = f"{hour}\n({fraction})"
-            xtick_labels.append(label)
-        ax.set_xticks(x_values)
-        ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
-    else:
-        # Etiquetas originales del eje x
-        ax.set_xticks(x_values)
-        ax.set_xticklabels(hours, rotation=45, ha='right')
+    # Prepare x-axis labels
+    xtick_labels = []
+    for hour in hours:
+        hour_label = str(hour).zfill(2)
+        if normalize:
+            # Add normalization factor to x-axis labels
+            norm_factor = norm_factors.get(hour, 1)
+            label = f'{hour_label}\n(x{norm_factor:.2f})'
+        else:
+            # Add fraction of active recorders to x-axis labels
+            num_active = active_recorders_per_hour.get(hour, 0)
+            fraction = f'{num_active}/{total_recorders}'
+            label = f'{hour_label}\n({fraction})'
+        xtick_labels.append(label)
+
+    ax.set_xticks(x_values)
+    ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
 
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
