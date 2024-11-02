@@ -1,8 +1,6 @@
 # scripts/advanced_analysis.py
+
 """
-Advanced Sound Analysis Script
------------------------------
- 
 This script performs multiple analyses on sound event data:
 1. Time Series Analysis
 2. Basic Statistical Analysis
@@ -10,23 +8,13 @@ This script performs multiple analyses on sound event data:
 4. Distribution Analysis
 5. Peak Activity Analysis
 """
-"""
-Advanced Sound Analysis Script
------------------------------
-This script follows the same data processing logic as plot_results.py
-"""
- 
-"""
-Advanced Sound Analysis Script
------------------------------
-This script follows the same data processing logic as plot_results.py
-"""
- 
+
 import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import json
 import src.config as config
 from src.data_processing.load_data import (
     load_ontology,
@@ -37,7 +25,12 @@ from src.data_processing.load_data import (
 from src.data_processing.utils import get_all_subclasses, get_class_id
  
 def save_plot(plt, name):
-    """Save plot to assets/images directory"""
+    """
+    Save plot to assets/images directory
+    Args:
+        plt: matplotlib.pyplot object
+        name (str): Name for the output file
+    """
     save_dir = os.path.join('assets', 'images')
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f'{name}.png')
@@ -45,46 +38,62 @@ def save_plot(plt, name):
     print(f"Plot saved to: {save_path}")
  
 def process_data(data_counts, selected_classes, class_mappings, hierarchy_mappings):
-    """Process data following plot_results.py logic"""
+    """    
+    Args:
+        data_counts (dict): Nested dictionary with counts per recorder and hour
+        selected_classes (list): List of class names to analyze
+        class_mappings (tuple): Contains mappings between class labels and IDs
+        hierarchy_mappings (tuple): Contains parent-child relationships
+        
+    Returns:
+        pandas.DataFrame: Processed data with hours as index and classes as columns
+    """
     class_label_to_id, id_to_class, name_to_class_id = class_mappings
     parent_to_children, child_to_parents = hierarchy_mappings
-   
-    # First aggregate counts across all recorders
+
+    # First aggregate counts across selected recorders
     counts_per_hour = {}
-    for hour, hour_data in data_counts.items():
-        counts_per_hour[hour] = {}
-        for class_id, count_data in hour_data.items():
-            if isinstance(count_data, dict):
-                # Handle nested structure
-                for sub_id, count in count_data.items():
-                    if sub_id not in counts_per_hour[hour]:
-                        counts_per_hour[hour][sub_id] = 0
-                    counts_per_hour[hour][sub_id] += count
-            else:
-                # Handle flat structure
+    for recorder in config.SELECTED_RECORDERS:
+        recorder_data = data_counts.get(recorder, {})
+        for hour in recorder_data:
+            if hour not in counts_per_hour:
+                counts_per_hour[hour] = {}
+            for class_id, count in recorder_data[hour].items():
                 if class_id not in counts_per_hour[hour]:
                     counts_per_hour[hour][class_id] = 0
-                counts_per_hour[hour][class_id] += count_data
- 
-    # Then process each class including its subclasses
+                counts_per_hour[hour][class_id] += count
+
+    # Get the hours from the actual data
+    all_hours = sorted(counts_per_hour.keys(), key=lambda x: int(x))
+    print(f"\nDebug: Hours from data: {all_hours}")
+
+    # Process each class for each hour
     df_data = {}
-    for hour in sorted(counts_per_hour.keys()):
+    for hour in all_hours:
         df_data[hour] = {}
         for class_name in selected_classes:
             class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
             if class_id:
                 # Get all subclasses using the same function as plot_results.py
                 all_related_ids = get_all_subclasses(class_id, parent_to_children)
-                class_count = sum(counts_per_hour[hour].get(cid, 0) for cid in all_related_ids)
+                class_count = sum(counts_per_hour[hour].get(cid, 0) 
+                                for cid in all_related_ids)
                 df_data[hour][class_name] = class_count
             else:
                 print(f"Warning: Could not find ID for class {class_name}")
                 df_data[hour][class_name] = 0
- 
+    
     return pd.DataFrame(df_data).T
- 
+
 def run_advanced_analysis(data_counts, selected_classes, threshold_str, recorder_info, normalize=False):
-    """Run advanced analyses on the sound event data."""
+    """    
+    Args:
+        data_counts (dict): Raw data counts per hour and class
+        selected_classes (list): List of class names to analyze
+        threshold_str (str): Confidence threshold used for detection
+        recorder_info (str): Information about recorder configuration
+        normalize (bool): Whether to normalize counts by active recorders
+    """
     print("\n=== Advanced Sound Analysis Report ===")
     print(f"Analysis Parameters:")
     print(f"- Selected Classes: {selected_classes}")
@@ -92,11 +101,15 @@ def run_advanced_analysis(data_counts, selected_classes, threshold_str, recorder
     print(f"- Recorder Configuration: {recorder_info}")
  
     try:
-        # Load mappings
+        # Load necessary ontology and mapping information
         ontology = load_ontology(config.ONTOLOGY_PATH)
         class_label_to_id, class_id_to_label = load_class_labels(config.CLASS_LABELS_CSV_PATH)
         id_to_class, name_to_class_id = build_mappings(ontology)
         parent_to_children, child_to_parents = build_parent_child_mappings(ontology)
+        
+        # Load active recorders information
+        with open('analysis_results/recording_times/recorders_active_per_hour.json', 'r') as f:
+            recorders_active = json.load(f)
  
         # Process data using the same logic as plot_results.py
         df = process_data(
@@ -113,27 +126,36 @@ def run_advanced_analysis(data_counts, selected_classes, threshold_str, recorder
         if df.empty:
             print("No data available for the selected classes.")
             return
+        
+        # Calculate active recorders ratio for x-axis labels
+        total_recorders = len(config.SELECTED_RECORDERS)
+        x_labels = []
+        for hour in df.index:
+            active_recorders_list = recorders_active.get(hour, [])
+            active_recorders = [rec for rec in active_recorders_list if rec in config.SELECTED_RECORDERS]
+            num_active = len(active_recorders)
+            x_labels.append(f"{hour}\n({num_active}/{total_recorders})")
  
-        # 1. Time Series Plot
+        # 1. Time Series Analysis
         plt.figure(figsize=(12, 6))
         for column in df.columns:
-            plt.plot(df.index, df[column], marker='o', label=column)
-        plt.title('Temporal Distribution of Sound Events')
-        plt.xlabel('Hour of Day')
+            plt.plot(range(len(df.index)), df[column], marker='o', label=column)
+        plt.title(f'Sound Events per Hour ({recorder_info}, Threshold: {threshold_str})')
+        plt.xlabel('Hour')
         plt.ylabel('Event Count')
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.xticks(rotation=45)
+        plt.xticks(range(len(df.index)), x_labels, rotation=45, ha='right')
         plt.tight_layout()
         save_plot(plt, 'temporal_distribution')
         plt.show()
  
-        # 2. Basic Statistics
+        # 2. Basic Statistical Analysis
         print("\nStatistical Analysis:")
         print("-----------------")
         stats = df.describe()
         print(stats)
  
-        # 3. Correlation Analysis
+        # 3. Correlation Analysis between sound classes
         active_cols = df.columns[df.sum() > 0]
         if len(active_cols) > 1:
             correlation_matrix = df[active_cols].corr()
@@ -161,7 +183,7 @@ def run_advanced_analysis(data_counts, selected_classes, threshold_str, recorder
                     direction = "positive" if corr > 0 else "negative"
                     print(f"{class1} vs {class2}: {corr:.2f} ({strength} {direction} correlation)")
  
-        # 4. Distribution Analysis
+        # 4. Distribution Analysis using box plots
         plt.figure(figsize=(12, 6))
         df.boxplot()
         plt.title('Statistical Distribution of Sound Events by Class')
@@ -171,7 +193,7 @@ def run_advanced_analysis(data_counts, selected_classes, threshold_str, recorder
         save_plot(plt, 'distribution_boxplot')
         plt.show()
  
-        # 5. Peak Activity Analysis
+        # 5. Peak Activity Analysis for each sound class
         print("\nPeak Activity Analysis:")
         print("----------------------")
         for column in df.columns:
