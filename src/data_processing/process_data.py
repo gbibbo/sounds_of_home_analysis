@@ -64,7 +64,6 @@ def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_
                                             file_counts[hour][related_id] = 0
                                         file_counts[hour][related_id] += increment
                                         classes_with_data.add(related_id)
-
     except Exception as e:
         print(f"Error processing file {file_path}: {e}")
         raise

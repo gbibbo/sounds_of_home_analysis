@@ -95,8 +95,7 @@ def plot_results(data_counts, selected_recorders, selected_classes, threshold_st
             class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
             if class_id:
                 # Get all subclasses (including the class itself)
-                all_related_ids = get_all_subclasses(class_id, parent_to_children)
-                class_count = sum(counts_per_hour[hour].get(cid, 0) for cid in all_related_ids)
+                class_count = counts_per_hour[hour].get(class_id, 0)
                 # Apply normalization if enabled
                 counts_per_class_per_hour[hour][class_name] = class_count * norm_factor
             else:

@@ -6,6 +6,7 @@ from tkinter import ttk, messagebox
 import src.config as config
 from scripts.plot_results import plot_results
 import json
+from scripts.advanced_analysis import run_advanced_analysis
 
 def run_tkinter_interface():
     """
@@ -242,8 +243,8 @@ def run_tkinter_interface():
             current_row = 0
             current_col += 1
 
-    def generate_plot():
-        """Generate plot based on selected parameters"""
+    def generate_plot(run_analysis=True):
+        """Generate plot and optionally run advanced analysis based on selected parameters"""
         # Validate selections
         if not threshold_var.get():
             messagebox.showwarning("Selection Error", "Please select a confidence threshold.")
@@ -276,21 +277,33 @@ def run_tkinter_interface():
 
         if not os.path.exists(input_file):
             messagebox.showerror("File Not Found", 
-                               f"The analysis results file '{input_file}' does not exist.")
+                            f"The analysis results file '{input_file}' does not exist.")
             return
 
         try:
             with open(input_file, 'r') as f:
                 data = json.load(f)
             data_counts = data['data_counts']
+            
+            # Execute plot_results
             plot_results(data_counts, config.SELECTED_RECORDERS, 
-                       config.SELECTED_CLASSES, threshold_str, recorder_info,
-                       normalize_var.get())
+                    config.SELECTED_CLASSES, threshold_str, recorder_info,
+                    normalize_var.get())
+
+            # Execute run_advanced_analysis only if run_analysis is True
+            if run_analysis:
+                run_advanced_analysis(data_counts, config.SELECTED_CLASSES, 
+                                threshold_str, recorder_info,
+                                normalize_var.get())
+            
         except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while generating the plot:\n{e}")
+            messagebox.showerror("Error", f"An error occurred while generating the analysis:\n{e}")
 
     # Add plot button at the bottom
-    ttk.Button(root, text="Plot", command=generate_plot).pack(pady=20)
+    ttk.Button(root, text="Plot", command=lambda: generate_plot(run_analysis=False)).pack(side="left", padx=20, pady=20)
+
+    # Add plot and analyze button at the bottom
+    ttk.Button(root, text="Plot and Analyze", command=lambda: generate_plot(run_analysis=True)).pack(side="right", padx=20, pady=20)
 
     # Start the main event loop
     root.mainloop()
