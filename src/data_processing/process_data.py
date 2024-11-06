@@ -53,6 +53,7 @@ def compute_class_thresholds(class_label_to_id, class_id_to_label):
 
 def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_to_category_info,
                       parent_to_children, child_to_parents, selected_hours, confidence_threshold, class_thresholds, recorder):
+    # Initialize counts per day
     file_counts_normal = {}
     file_counts_muted = {}
     processed_hours = set()
@@ -62,6 +63,7 @@ def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_
     try:
         filename = os.path.basename(file_path).replace('_light.json', '').replace('.json', '')
         file_datetime = datetime.datetime.strptime(filename, '%Y%m%d_%H%M%S')
+        date_str = file_datetime.strftime('%Y%m%d')  # Get the date as a string
 
         with open(file_path, 'r') as f:
             data = json.load(f)
@@ -116,11 +118,15 @@ def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_
                         # Check if frame is muted
                         is_muted = any(start <= frame_timestamp <= end for start, end in merged_intervals)
 
-                        # Initialize counts if not already
-                        if hour not in file_counts_normal:
-                            file_counts_normal[hour] = {}
-                        if hour not in file_counts_muted:
-                            file_counts_muted[hour] = {}
+                        # Initialize counts for the date if not already
+                        if date_str not in file_counts_normal:
+                            file_counts_normal[date_str] = {}
+                            file_counts_muted[date_str] = {}
+
+                        # Initialize counts for the hour if not already
+                        if hour not in file_counts_normal[date_str]:
+                            file_counts_normal[date_str][hour] = {}
+                            file_counts_muted[date_str][hour] = {}
 
                         for pred in predictions:
                             class_label = pred.get('class_label') or pred.get('class')
@@ -146,16 +152,16 @@ def process_json_file(file_path, class_label_to_id, class_id_to_label, class_id_
 
                                         # Update normal counts
                                         for related_id in all_related_ids:
-                                            if related_id not in file_counts_normal[hour]:
-                                                file_counts_normal[hour][related_id] = 0
-                                            file_counts_normal[hour][related_id] += increment
+                                            if related_id not in file_counts_normal[date_str][hour]:
+                                                file_counts_normal[date_str][hour][related_id] = 0
+                                            file_counts_normal[date_str][hour][related_id] += increment
 
                                         # Update muted counts if not muted
                                         if not is_muted:
                                             for related_id in all_related_ids:
-                                                if related_id not in file_counts_muted[hour]:
-                                                    file_counts_muted[hour][related_id] = 0
-                                                file_counts_muted[hour][related_id] += increment
+                                                if related_id not in file_counts_muted[date_str][hour]:
+                                                    file_counts_muted[date_str][hour][related_id] = 0
+                                                file_counts_muted[date_str][hour][related_id] += increment
 
     except Exception as e:
         print(f"Error processing file {file_path}: {e}")
@@ -254,23 +260,30 @@ def load_and_process_data():
             # Merge normal results
             if recorder not in data_counts_normal:
                 data_counts_normal[recorder] = {}
-            for hour, counts in file_counts_normal_rec.items():
-                if hour not in data_counts_normal[recorder]:
-                    data_counts_normal[recorder][hour] = {}
-                for class_id, count in counts.items():
-                    if class_id not in data_counts_normal[recorder][hour]:
-                        data_counts_normal[recorder][hour][class_id] = 0
-                    data_counts_normal[recorder][hour][class_id] += count
+            for date_str, hours_dict in file_counts_normal_rec.items():
+                if date_str not in data_counts_normal[recorder]:
+                    data_counts_normal[recorder][date_str] = {}
+                for hour, counts in hours_dict.items():
+                    if hour not in data_counts_normal[recorder][date_str]:
+                        data_counts_normal[recorder][date_str][hour] = {}
+                    for class_id, count in counts.items():
+                        if class_id not in data_counts_normal[recorder][date_str][hour]:
+                            data_counts_normal[recorder][date_str][hour][class_id] = 0
+                        data_counts_normal[recorder][date_str][hour][class_id] += count
+
             # Merge muted results
             if recorder not in data_counts_muted:
                 data_counts_muted[recorder] = {}
-            for hour, counts in file_counts_muted_rec.items():
-                if hour not in data_counts_muted[recorder]:
-                    data_counts_muted[recorder][hour] = {}
-                for class_id, count in counts.items():
-                    if class_id not in data_counts_muted[recorder][hour]:
-                        data_counts_muted[recorder][hour][class_id] = 0
-                    data_counts_muted[recorder][hour][class_id] += count
+            for date_str, hours_dict in file_counts_muted_rec.items():
+                if date_str not in data_counts_muted[recorder]:
+                    data_counts_muted[recorder][date_str] = {}
+                for hour, counts in hours_dict.items():
+                    if hour not in data_counts_muted[recorder][date_str]:
+                        data_counts_muted[recorder][date_str][hour] = {}
+                    for class_id, count in counts.items():
+                        if class_id not in data_counts_muted[recorder][date_str][hour]:
+                            data_counts_muted[recorder][date_str][hour][class_id] = 0
+                        data_counts_muted[recorder][date_str][hour][class_id] += count
 
             processed_hours.update(file_hours)
             classes_with_data.update(file_classes)

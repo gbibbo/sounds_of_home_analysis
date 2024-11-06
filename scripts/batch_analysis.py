@@ -1,3 +1,5 @@
+# scripts/batch_analysis.py
+
 import sys
 import os
 import json
@@ -62,29 +64,109 @@ def main():
 
             # Include the threshold value in the filename
             if threshold == 'variable':
-                output_file_normal = os.path.join(normal_results_dir, f'analysis_results_threshold_variable.json')
-                output_file_muted = os.path.join(muted_results_dir, f'analysis_results_threshold_variable.json')
+                filename = 'analysis_results_threshold_variable.json'
             else:
-                output_file_normal = os.path.join(normal_results_dir, f'analysis_results_threshold_{threshold}.json')
-                output_file_muted = os.path.join(muted_results_dir, f'analysis_results_threshold_{threshold}.json')
+                filename = f'analysis_results_threshold_{threshold}.json'
 
-            # Save the normal results
+            # Save the total results
+            total_normal_dir = os.path.join(normal_results_dir, 'total')
+            total_muted_dir = os.path.join(muted_results_dir, 'total')
+            os.makedirs(total_normal_dir, exist_ok=True)
+            os.makedirs(total_muted_dir, exist_ok=True)
+
+            # Create data_counts_total_normal and data_counts_total_muted
+            data_counts_total_normal = {}
+            data_counts_total_muted = {}
+
+            for recorder in data_counts_normal:
+                data_counts_total_normal[recorder] = {}
+                data_counts_total_muted[recorder] = {}
+
+                # Aggregate counts over all dates for normal data
+                for date_str in data_counts_normal[recorder]:
+                    for hour in data_counts_normal[recorder][date_str]:
+                        if hour not in data_counts_total_normal[recorder]:
+                            data_counts_total_normal[recorder][hour] = {}
+                        for class_id, count in data_counts_normal[recorder][date_str][hour].items():
+                            if class_id not in data_counts_total_normal[recorder][hour]:
+                                data_counts_total_normal[recorder][hour][class_id] = 0
+                            data_counts_total_normal[recorder][hour][class_id] += count
+
+                # Aggregate counts over all dates for muted data
+                for date_str in data_counts_muted[recorder]:
+                    for hour in data_counts_muted[recorder][date_str]:
+                        if hour not in data_counts_total_muted[recorder]:
+                            data_counts_total_muted[recorder][hour] = {}
+                        for class_id, count in data_counts_muted[recorder][date_str][hour].items():
+                            if class_id not in data_counts_total_muted[recorder][hour]:
+                                data_counts_total_muted[recorder][hour][class_id] = 0
+                            data_counts_total_muted[recorder][hour][class_id] += count
+
+            output_file_normal = os.path.join(total_normal_dir, filename)
+            output_file_muted = os.path.join(total_muted_dir, filename)
+
+            # Save the normal total results
             with open(output_file_normal, 'w') as f:
                 json.dump({
                     'threshold': config.CONFIDENCE_THRESHOLD_STR,
-                    'data_counts': data_counts_normal
+                    'data_counts': data_counts_total_normal
                 }, f)
 
-            # Save the muted results
+            # Save the muted total results
             with open(output_file_muted, 'w') as f:
                 json.dump({
                     'threshold': config.CONFIDENCE_THRESHOLD_STR,
-                    'data_counts': data_counts_muted
+                    'data_counts': data_counts_total_muted
                 }, f)
 
+            # Save per-day results
+            days_set = set()
+            for recorder in data_counts_normal:
+                days_set.update(data_counts_normal[recorder].keys())
+
+            for day in days_set:
+                # Create directories for the day
+                day_normal_dir = os.path.join(normal_results_dir, day)
+                day_muted_dir = os.path.join(muted_results_dir, day)
+                os.makedirs(day_normal_dir, exist_ok=True)
+                os.makedirs(day_muted_dir, exist_ok=True)
+
+                # Extract data_counts for the day
+                data_counts_normal_day = {}
+                data_counts_muted_day = {}
+
+                for recorder in data_counts_normal:
+                    if day in data_counts_normal[recorder]:
+                        if recorder not in data_counts_normal_day:
+                            data_counts_normal_day[recorder] = {}
+                        data_counts_normal_day[recorder][day] = data_counts_normal[recorder][day]
+
+                    if day in data_counts_muted[recorder]:
+                        if recorder not in data_counts_muted_day:
+                            data_counts_muted_day[recorder] = {}
+                        data_counts_muted_day[recorder][day] = data_counts_muted[recorder][day]
+
+                # Save per-day normal results
+                output_file_normal_day = os.path.join(day_normal_dir, filename)
+                with open(output_file_normal_day, 'w') as f:
+                    json.dump({
+                        'threshold': config.CONFIDENCE_THRESHOLD_STR,
+                        'data_counts': data_counts_normal_day
+                    }, f)
+
+                # Save per-day muted results
+                output_file_muted_day = os.path.join(day_muted_dir, filename)
+                with open(output_file_muted_day, 'w') as f:
+                    json.dump({
+                        'threshold': config.CONFIDENCE_THRESHOLD_STR,
+                        'data_counts': data_counts_muted_day
+                    }, f)
+
             print(f"Analysis for threshold {config.CONFIDENCE_THRESHOLD_STR} completed.")
-            print(f"Normal results saved in '{output_file_normal}'.")
-            print(f"Muted results saved in '{output_file_muted}'.")
+            print(f"Total normal results saved in '{output_file_normal}'.")
+            print(f"Total muted results saved in '{output_file_muted}'.")
+            print(f"Per-day results saved in respective directories.")
+
         else:
             print(f"No data processed for threshold {config.CONFIDENCE_THRESHOLD_STR}.")
 
