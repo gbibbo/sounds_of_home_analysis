@@ -21,7 +21,7 @@ def run_tkinter_interface():
     # Create main window
     root = tk.Tk()
     root.title("Audio Analysis Tool")
-    root.geometry("1100x820")
+    root.geometry("1100x877")
 
     # Configure styles
     style = ttk.Style(root)
@@ -50,6 +50,11 @@ def run_tkinter_interface():
     recorder_vars = {rec: tk.BooleanVar(value=False) for rec in all_recorders}
     recorder_checkboxes = {}
 
+    # Days selection variables
+    all_days_var = tk.BooleanVar(value=True)  # "All Days" selected by default
+    day_vars = []
+    num_days = 7  # Number of days in the study
+
     def update_recorder_selection():
         """Update recorder checkboxes based on Kitchen/Living Room selection"""
         for rec in KITCHEN_RECORDERS:
@@ -59,6 +64,24 @@ def run_tkinter_interface():
             recorder_vars[rec].set(living_var.get())
             recorder_checkboxes[rec]['state'] = 'disabled' if living_var.get() else 'normal'
 
+    def update_day_selection():
+        """Update day checkboxes based on 'All Days' selection"""
+        if all_days_var.get():
+            # Disable individual day checkboxes and deselect them
+            for var, cb in zip(day_vars, day_checkboxes):
+                var.set(False)
+                cb['state'] = 'disabled'
+        else:
+            # Enable individual day checkboxes
+            for cb in day_checkboxes:
+                cb['state'] = 'normal'
+
+    def select_day(index):
+        """Ensure only one day is selected at a time"""
+        # Deselect other days
+        for i, var in enumerate(day_vars):
+            if i != index:
+                var.set(False)
     # Add Kitchen and Living Room checkbuttons
     ttk.Checkbutton(recorder_frame, text="Kitchen", variable=kitchen_var, 
                     command=update_recorder_selection).grid(row=1, column=0, sticky="w")
@@ -87,6 +110,36 @@ def run_tkinter_interface():
         )
     )
     muted_speech_btn.grid(row=1, column=8, rowspan=2, padx=(500,0), sticky="nsew")
+
+    # Days selection section
+    days_frame = ttk.Frame(options_frame)
+    days_frame.pack(fill="x", pady=10)
+    ttk.Label(days_frame, text="Days:").grid(row=0, column=0, sticky="w")
+
+    # "All Days" checkbox
+    ttk.Checkbutton(
+        days_frame,
+        text="All Days",
+        variable=all_days_var,
+        command=update_day_selection
+    ).grid(row=1, column=0, sticky="w")
+
+    day_checkboxes = []
+
+    for idx in range(num_days):
+        var = tk.BooleanVar(value=False)
+        day_vars.append(var)
+        cb = ttk.Checkbutton(
+            days_frame,
+            text=f"Day {idx+1}",
+            variable=var,
+            command=lambda idx=idx: select_day(idx)
+        )
+        cb.grid(row=1, column=idx+1, sticky="w")
+        day_checkboxes.append(cb)
+
+    # Initialize day selection state
+    update_day_selection()
 
     # Threshold selection section
     threshold_frame = ttk.Frame(options_frame)
@@ -273,6 +326,28 @@ def run_tkinter_interface():
         if not any(var.get() for var in class_vars.values()):
             messagebox.showwarning("Selection Error", "Please select at least one class.")
             return
+        
+        # Validate day selection
+        if not all_days_var.get() and not any(var.get() for var in day_vars):
+            messagebox.showwarning("Selection Error", "Please select at least one day.")
+            return
+
+        # Determine selected day(s)
+        if all_days_var.get():
+            results_subdir = 'total'
+            day_info = 'All Days'
+        else:
+            selected_day_index = None
+            for i, var in enumerate(day_vars):
+                if var.get():
+                    selected_day_index = i
+                    break
+            if selected_day_index is None:
+                messagebox.showwarning("Selection Error", "Please select at least one day.")
+                return
+            day_str = f'{selected_day_index + 1:02d}'  # Format day as '01', '02', etc.
+            results_subdir = day_str
+            day_info = f'Day {selected_day_index + 1}'
 
         # Update configurations
         config.SELECTED_RECORDERS = [rec for rec, var in recorder_vars.items() if var.get()]
@@ -288,12 +363,13 @@ def run_tkinter_interface():
         else:
             recorder_info = 'Selected recorders: ' + ', '.join(config.SELECTED_RECORDERS)
 
+        # Append day_info to recorder_info
+        recorder_info += f', {day_info}'
 
         # Load and process data
         threshold_str = threshold_var.get()
         results_dir = 'analysis_results/batch_analysis_results_MUTED' if muted_speech_var.get() else 'analysis_results/batch_analysis_results'
-        input_file = os.path.join(results_dir, 
-                            f'analysis_results_threshold_{threshold_str}.json')
+        input_file = os.path.join(results_dir, results_subdir, f'analysis_results_threshold_{threshold_str}.json')
 
         if not os.path.exists(input_file):
             messagebox.showerror("File Not Found", 

@@ -62,6 +62,15 @@ def main():
             # Unpack normal and muted data counts
             data_counts_normal, data_counts_muted, class_label_to_id, id_to_class, parent_to_children, name_to_class_id = result
 
+            # Create a sorted list of available dates
+            days_set = set()
+            for recorder in data_counts_normal:
+                days_set.update(data_counts_normal[recorder].keys())
+            days_list = sorted(days_set)  # Sorted list of date strings
+
+            # Create a mapping from day indices '01' to '07' to actual date strings
+            day_index_to_date = {f'{i+1:02d}': date_str for i, date_str in enumerate(days_list)}    
+
             # Include the threshold value in the filename
             if threshold == 'variable':
                 filename = 'analysis_results_threshold_variable.json'
@@ -120,14 +129,10 @@ def main():
                 }, f)
 
             # Save per-day results
-            days_set = set()
-            for recorder in data_counts_normal:
-                days_set.update(data_counts_normal[recorder].keys())
-
-            for day in days_set:
+            for day_index, date_str in day_index_to_date.items():
                 # Create directories for the day
-                day_normal_dir = os.path.join(normal_results_dir, day)
-                day_muted_dir = os.path.join(muted_results_dir, day)
+                day_normal_dir = os.path.join(normal_results_dir, day_index)
+                day_muted_dir = os.path.join(muted_results_dir, day_index)
                 os.makedirs(day_normal_dir, exist_ok=True)
                 os.makedirs(day_muted_dir, exist_ok=True)
 
@@ -136,15 +141,18 @@ def main():
                 data_counts_muted_day = {}
 
                 for recorder in data_counts_normal:
-                    if day in data_counts_normal[recorder]:
+                    if date_str in data_counts_normal[recorder]:
                         if recorder not in data_counts_normal_day:
                             data_counts_normal_day[recorder] = {}
-                        data_counts_normal_day[recorder][day] = data_counts_normal[recorder][day]
+                        # Copy data for this date
+                        data_counts_normal_day[recorder] = data_counts_normal[recorder][date_str]
 
-                    if day in data_counts_muted[recorder]:
+                for recorder in data_counts_muted:
+                    if date_str in data_counts_muted[recorder]:
                         if recorder not in data_counts_muted_day:
                             data_counts_muted_day[recorder] = {}
-                        data_counts_muted_day[recorder][day] = data_counts_muted[recorder][day]
+                        # Copy data for this date
+                        data_counts_muted_day[recorder] = data_counts_muted[recorder][date_str]
 
                 # Save per-day normal results
                 output_file_normal_day = os.path.join(day_normal_dir, filename)
