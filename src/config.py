@@ -3,8 +3,8 @@
 import os
 
 # Root directory containing the recorder folders
-#PREDICTIONS_ROOT_DIR = 'assets/sample_data'
-PREDICTIONS_ROOT_DIR = '/vol/research/datasets/audio/AI4S_SoH/VITALISE data light/Cnn14_DecisionLevelAtt_light'
+PREDICTIONS_ROOT_DIR = 'assets/sample_data_light'
+#PREDICTIONS_ROOT_DIR = '/vol/research/datasets/audio/AI4S_SoH/VITALISE data light/Cnn14_DecisionLevelAtt_light'
 
 # Paths to the ontology and class labels files
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,8 +28,86 @@ SELECTED_DAYS = []  # Will be dynamically populated based on available data
 SELECTED_HOURS = []  # Will be dynamically populated based on available data
 SELECTED_CLASSES = []  # No classes preselected
 
+# Constants for speech muting
+MUTE_LABELS = [
+    "Speech",
+    "Singing",
+    "Male singing",
+    "Female singing",
+    "Child singing",
+    "Male speech, man speaking",
+    "Female speech, woman speaking",
+    "Conversation",
+    "Narration, monologue",
+    "Music"
+]
+MUTE_THRESHOLD = 0.2
+
 # Custom categories provided by the user
 CUSTOM_CATEGORIES = {
+    'Human sounds': [
+        'Human voice',
+        'Whistling',
+        'Respiratory sounds',
+        'Human locomotion',
+        'Digestive',
+        'Hands',
+        'Heart sounds, heartbeat',
+        'Otoacoustic emission',
+        'Human group actions'
+    ],
+    'Source-ambiguous sounds': [
+        'Generic impact sounds',
+        'Surface contact',
+        'Deformable shell',
+        'Onomatopoeia',
+        'Silence',
+        'Other sourceless'
+    ],
+    'Animal': [
+        'Animal',
+        'Domestic animals, pets',
+        'Livestock, farm animals, working animals',
+        'Wild animals'
+    ],
+    'Sounds of things': [
+        'Vehicle',
+        'Engine',
+        'Domestic sounds, home sounds',
+        'Bell',
+        'Alarm',
+        'Mechanisms',
+        'Tools',
+        'Explosion',
+        'Wood',
+        'Glass',
+        'Liquid',
+        'Miscellaneous sources',
+        'Specific impact sounds'
+    ],
+    'Music': [
+        'Music',
+        'Musical instrument',
+        'Music genre',
+        'Musical concepts',
+        'Music role',
+        'Music mood'
+    ],
+    'Natural sounds': [
+        'Wind',
+        'Thunderstorm',
+        'Water',
+        'Fire'
+    ],
+    'Channel, environment and background': [
+        'Acoustic environment',
+        'Noise',
+        'Sound reproduction'
+    ]
+}
+
+# Custom categories for interface
+CUSTOM_CATEGORIES_INTERFACE = {
     'Human sounds': [
         'Human voice',
         'Whistling',

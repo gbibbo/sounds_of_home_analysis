@@ -1,19 +1,11 @@
-# scripts/batch_analysis.py
-
 import sys
 import os
 import json
-
-# Modify the search path to include the root directory of the project
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import src.config as config
 
 from src.data_processing.utils import get_available_days, get_available_hours
 from src.data_processing.load_data import load_ontology, build_mappings
 from src.data_processing.process_data import load_and_process_data
-
-
 
 def main():
     # Define thresholds to analyze, including 'variable' for variable threshold
@@ -44,9 +36,11 @@ def main():
         config.SELECTED_CLASSES.append(category)
         config.SELECTED_CLASSES.extend(subclasses)
 
-    # Create a directory to save the results
-    results_dir = 'analysis_results'
-    os.makedirs(results_dir, exist_ok=True)
+    # Create directories to save the results
+    normal_results_dir = os.path.join('analysis_results', 'batch_analysis_results')
+    muted_results_dir = os.path.join('analysis_results', 'batch_analysis_results_MUTED')
+    os.makedirs(normal_results_dir, exist_ok=True)
+    os.makedirs(muted_results_dir, exist_ok=True)
 
     for threshold in thresholds:
         if threshold == 'variable':
@@ -63,22 +57,34 @@ def main():
         # Load and process the data
         result = load_and_process_data()
         if result:
-            data_counts, class_label_to_id, id_to_class, parent_to_children, name_to_class_id = result
+            # Unpack normal and muted data counts
+            data_counts_normal, data_counts_muted, class_label_to_id, id_to_class, parent_to_children, name_to_class_id = result
 
             # Include the threshold value in the filename
             if threshold == 'variable':
-                output_file = os.path.join(results_dir, f'analysis_results_threshold_variable.json')
+                output_file_normal = os.path.join(normal_results_dir, f'analysis_results_threshold_variable.json')
+                output_file_muted = os.path.join(muted_results_dir, f'analysis_results_threshold_variable.json')
             else:
-                output_file = os.path.join(results_dir, f'analysis_results_threshold_{threshold}.json')
+                output_file_normal = os.path.join(normal_results_dir, f'analysis_results_threshold_{threshold}.json')
+                output_file_muted = os.path.join(muted_results_dir, f'analysis_results_threshold_{threshold}.json')
 
-            # Save the results along with the threshold value
-            with open(output_file, 'w') as f:
+            # Save the normal results
+            with open(output_file_normal, 'w') as f:
                 json.dump({
                     'threshold': config.CONFIDENCE_THRESHOLD_STR,
-                    'data_counts': data_counts
+                    'data_counts': data_counts_normal
                 }, f)
 
-            print(f"Analysis for threshold {config.CONFIDENCE_THRESHOLD_STR} completed. Results saved in '{output_file}'.")
+            # Save the muted results
+            with open(output_file_muted, 'w') as f:
+                json.dump({
+                    'threshold': config.CONFIDENCE_THRESHOLD_STR,
+                    'data_counts': data_counts_muted
+                }, f)
+
+            print(f"Analysis for threshold {config.CONFIDENCE_THRESHOLD_STR} completed.")
+            print(f"Normal results saved in '{output_file_normal}'.")
+            print(f"Muted results saved in '{output_file_muted}'.")
         else:
             print(f"No data processed for threshold {config.CONFIDENCE_THRESHOLD_STR}.")
 

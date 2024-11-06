@@ -30,6 +30,10 @@ def run_tkinter_interface():
               background=[('active', 'white')],
               foreground=[('active', 'black')])
     style.configure('Selected.TButton', background='blue', foreground='white')
+    style.configure('Muted.TButton', padding=10, width=10, anchor='center')
+    style.map('Muted.TButton',
+          background=[('selected', '#4a6cd4'), ('!selected', '#e1e1e1')],
+          foreground=[('selected', 'white'), ('!selected', 'black')])
 
     # Create main options frame
     options_frame = ttk.LabelFrame(root, text="Select Parameters")
@@ -69,6 +73,20 @@ def run_tkinter_interface():
         col = idx % 7 + 1
         cb.grid(row=row, column=col, sticky="w")
         recorder_checkboxes[rec] = cb
+
+    # Add muted speech toggle button in recorder frame
+    muted_speech_var = tk.BooleanVar(value=False)
+    muted_speech_btn = ttk.Checkbutton(
+        recorder_frame,
+        text="Muted\nSpeech",
+        style='Muted.TButton',
+        variable=muted_speech_var,
+        command=lambda: style.configure(
+            'Muted.TButton',
+            background='#4a6cd4' if muted_speech_var.get() else '#e1e1e1'
+        )
+    )
+    muted_speech_btn.grid(row=1, column=8, rowspan=2, padx=(500,0), sticky="nsew")
 
     # Threshold selection section
     threshold_frame = ttk.Frame(options_frame)
@@ -211,7 +229,7 @@ def run_tkinter_interface():
     current_col = 0
 
     # Add main categories and their subcategories
-    for category_name, subcategories in config.CUSTOM_CATEGORIES.items():
+    for category_name, subcategories in config.CUSTOM_CATEGORIES_INTERFACE.items():
         category_var = tk.BooleanVar(value=False)
         class_vars[category_name] = category_var
         
@@ -270,10 +288,12 @@ def run_tkinter_interface():
         else:
             recorder_info = 'Selected recorders: ' + ', '.join(config.SELECTED_RECORDERS)
 
+
         # Load and process data
         threshold_str = threshold_var.get()
-        input_file = os.path.join('analysis_results/batch_analysis_results', 
-                                f'analysis_results_threshold_{threshold_str}.json')
+        results_dir = 'analysis_results/batch_analysis_results_MUTED' if muted_speech_var.get() else 'analysis_results/batch_analysis_results'
+        input_file = os.path.join(results_dir, 
+                            f'analysis_results_threshold_{threshold_str}.json')
 
         if not os.path.exists(input_file):
             messagebox.showerror("File Not Found", 
