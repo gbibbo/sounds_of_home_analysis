@@ -9,6 +9,6 @@ assets/sample_data_light/02/*.json
 assets/sample_data/01/*.nfs*
 src/sounds_of_home_analysis.egg-info/*.txt
 src/sounds_of_home_analysis.egg-info/PKG-INFO
-analysis_results/POSTA_batch_analysis_resutls/*.json
-analysis_results/batch_analysis_resutls/*.json
-analysis_results/batch_analysis_resutls_MUTED/*.json
+analysis_results/POSTA_batch_analysis_results/*.json
+analysis_results/batch_analysis_results/*.json
+analysis_results/batch_analysis_results_MUTED/*.json
