@@ -1,4 +1,4 @@
-# scripts/home_sounds_advanced_analysis.py
+# scripts/granger.py
 
 """
 scripts/home_sounds_advanced_analysis.py
@@ -25,6 +25,7 @@ import sys
 import json
 import datetime
 from collections import defaultdict
+import time
 
 import numpy as np
 import pandas as pd
@@ -51,13 +52,22 @@ from src.data_processing.load_data import (
 import warnings
 warnings.filterwarnings("ignore")
 
+# Define base directory
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'granger')
+os.makedirs(BASE_DIR, exist_ok=True)
+
 def main():
+    import psutil
+    from pathlib import Path
+    print("\n=== Home Sounds Advanced Analysis ===")
+    print("\nInitializing...")
     # Configuration
     predictions_root_dir = PREDICTIONS_ROOT_DIR  # Update if necessary
-    confidence_threshold = 0.5  # Adjust as needed
+    confidence_threshold = 0.0  # Adjust as needed
     bin_size = 60  # Time bin size in seconds (e.g., 60 seconds for per-minute aggregation)
     selected_recorders = []  # List of recorder IDs to include; empty list means all
     normalize_by_recorders = False  # Set to True if you want to normalize counts
+    start_time = time.time()
 
     # HOME_SOUNDS classes provided
     HOME_SOUNDS = {
@@ -109,15 +119,34 @@ def main():
         "Zipper (clothing)": {}
     }
 
+    print(f"Starting analysis at: {datetime.datetime.now()}")
+    print(f"Expected completion in: {1344/4:.1f} hours")
+
+    # Agregar checkpoints de tiempo
+    def log_progress(msg):
+        elapsed = (time.time() - start_time) / 3600
+        print(f"\n[{elapsed:.1f}h] {msg}")
+
+    def save_checkpoint(data, name):
+        checkpoint_dir = os.path.join(BASE_DIR, 'checkpoints')
+        os.makedirs(checkpoint_dir, exist_ok=True)  # Usar os.makedirs en lugar de mkdir
+        checkpoint_file = os.path.join(checkpoint_dir, f'checkpoint_{name}.pkl')  # Usar os.path.join en lugar de /
+        pd.to_pickle(data, checkpoint_file, compression='gzip')
+        print(f"\nSaved checkpoint: {checkpoint_file}")
+    
+    def check_memory():
+        memory = psutil.Process().memory_info().rss / 1024 / 1024
+        print(f"\nCurrent memory usage: {memory:.0f} MB")
+
     # Step 1: Load ontology and class labels
-    print("Loading ontology and class labels...")
+    print("\n=== Loading Data ===")
     ontology = load_ontology(ONTOLOGY_PATH)
     class_label_to_id, class_id_to_label = load_class_labels(CLASS_LABELS_CSV_PATH)
     id_to_class, name_to_class_id = build_mappings(ontology)
     parent_to_children, child_to_parents = build_parent_child_mappings(ontology)
 
     # Step 2: Map HOME_SOUNDS classes to class IDs
-    print("Mapping HOME_SOUNDS classes to class IDs...")
+    #print("Mapping HOME_SOUNDS classes to class IDs...")
     selected_class_ids = set()
     for class_name in HOME_SOUNDS.keys():
         class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
@@ -131,29 +160,98 @@ def main():
     # Map class IDs back to class names for reference
     selected_class_id_to_name = {class_id: id_to_class[class_id]['name'] for class_id in selected_class_ids}
 
+    # Create a set of selected class names
+    selected_class_names = set(selected_class_id_to_name.values())
+
     print(f"Total selected classes (including descendants): {len(selected_class_ids)}")
 
     # Step 3: Process the dataset
     print("Processing dataset...")
+    log_progress("Starting data processing...")
     data_dir = predictions_root_dir
-    df_all = process_all_files(
+    df_all, available_classes = process_all_files(
         data_dir,
-        selected_class_ids,
-        class_id_to_label,
+        selected_class_names,
         confidence_threshold,
         bin_size,
         selected_recorders
     )
 
+    def validate_results(df_all, available_classes):
+        # Validate unrealistic high frequencies
+        suspicious_classes = []
+        for cls in available_classes:
+            occurrence_rate = (df_all[cls] > 0).mean() * 100
+            if occurrence_rate > 75:  # Más del 75% del tiempo
+                suspicious_classes.append((cls, occurrence_rate))
+        
+        if suspicious_classes:
+            print("\nWARNING: Suspiciously high occurrence rates:")
+            for cls, rate in suspicious_classes:
+                print(f"- {cls}: {rate:.1f}% of time bins")
+                
+        # Validate memory scaling
+        total_hours = len(df_all) / 60  # assuming 60s bins
+        memory_per_hour = psutil.Process().memory_info().rss / (1024 * 1024 * total_hours)
+        projected_memory = memory_per_hour * 1344  # total dataset hours
+        
+        print(f"\nMemory Projection:")
+        print(f"Current: {memory_per_hour:.1f} MB/hour")
+        print(f"Projected for full dataset: {projected_memory/1024:.1f} GB")
+        
+        if projected_memory/1024 > 100:  # Si proyección > 100GB
+            print("WARNING: Memory usage might be too high for full dataset")
+
+    validate_results(df_all, available_classes)
+
+    # Add here:
+    check_memory()
+    save_checkpoint({'df_all': df_all, 'available_classes': available_classes}, 
+                   'after_processing')
+
     # Check if data is available
     if df_all.empty:
         print("No data available after processing. Please check your configuration.")
         return
+    
+    # Analyze class frequencies
+    class_frequencies = {}
+    for cls in available_classes:
+        non_zero_counts = (df_all[cls] > 0).sum()
+        class_frequencies[cls] = non_zero_counts
+    
+    print("\nClass Occurrence Statistics:")
+    for cls, freq in sorted(class_frequencies.items(), key=lambda x: x[1], reverse=True):
+        print(f"{cls}: {freq} occurrences ({(freq/len(df_all))*100:.2f}% of time bins)")
+    
+    # Filter out sparse classes
+    min_occurrence_threshold = len(df_all) * 0.05  # 5% threshold
+    active_classes = [cls for cls, freq in class_frequencies.items() 
+                     if freq >= min_occurrence_threshold]
+    
+    print(f"\nFiltering classes: {len(available_classes)} -> {len(active_classes)}")
+    available_classes = set(active_classes)
+
+    # Filter selected_class_id_to_name to only include available classes
+    selected_class_id_to_name = {
+        class_id: name 
+        for class_id, name in selected_class_id_to_name.items() 
+        if name in available_classes
+    }
+
+    if not selected_class_id_to_name:
+        print("No selected classes found in the data. Please check class names.")
+        return
+
+    print(f"\nProceeding with analysis for {len(selected_class_id_to_name)} available classes:")
+    for name in sorted(selected_class_id_to_name.values()):
+        print(f"  - {name}")
 
     # Step 4: Perform data analysis
-    print("Performing data analysis...")
+    print("\nPerforming data analysis...")
     # Aggregate data over all recorders and time bins
-    df_agg = df_all.groupby(['time_bin'])[selected_class_id_to_name.values()].sum().reset_index()
+    available_columns = list(available_classes)
+    df_agg = df_all.groupby(['time_bin'])[available_columns].sum().reset_index()
 
     # Normalize by number of recorders if needed
     if normalize_by_recorders and selected_recorders:
@@ -167,7 +265,7 @@ def main():
     df_agg.set_index('time_bin', inplace=True)
 
     # Step 5: Advanced Analyses
-
+    log_progress("Starting statistical analysis...")
     # Analysis 1: Time Series Analysis using ARIMA models
     arima_models = fit_arima_models(df_agg, selected_class_id_to_name)
 
@@ -179,46 +277,132 @@ def main():
 
     # Analysis 4: Principal Component Analysis (PCA)
     pca_results = perform_pca(df_agg, selected_class_id_to_name)
+    save_checkpoint({'pca_results': pca_results}, 'pca')
 
     # Step 6: Visualization
+    log_progress("Generating visualizations...")
     plot_time_series(df_agg, selected_class_id_to_name)
     correlation_matrix = compute_correlations(df_agg, selected_class_id_to_name)
+    save_checkpoint({'correlation_matrix': correlation_matrix}, 'correlations')
     plot_correlation_matrix(correlation_matrix)
     plot_cross_correlations(cross_correlations)
     plot_pca_results(pca_results, selected_class_id_to_name)
 
-    # Additional analyses and visualizations can be added here
+    # Save analysis summary
+    summary = {
+        'dataset': {
+            'total_classes': len(available_classes),
+            'classes_analyzed': list(available_classes)
+        },
+        'time_series': {
+            'bin_size': bin_size,
+            'total_bins': len(df_agg),
+            'non_empty_bins_percent': (df_agg > 0).mean().to_dict()
+        },
+        'models': {
+            'successful_arima_fits': len(arima_models),
+            'pca_variance': float(pca_results['explained_variance'][0])
+        }
+    }
+    
+    os.makedirs(os.path.join(BASE_DIR, 'results'), exist_ok=True)
+    with open(os.path.join(BASE_DIR, 'results', 'analysis_summary.json'), 'w') as f:
+        json.dump(summary, f, indent=2)
+    total_time = (time.time() - start_time) / 3600
+    print(f"\nFinal processing time: {total_time:.1f} hours")
 
-def process_all_files(data_dir, selected_class_ids, class_id_to_label, confidence_threshold, bin_size, selected_recorders):
-    df_list = []
+def process_all_files(data_dir, selected_class_names, confidence_threshold, bin_size, selected_recorders):
+    from pathlib import Path
+    import gc  # Para garbage collection
+    
+    total_hours = 0
+    total_files = 0
+    df_buffer = []  # Buffer para almacenar DataFrames temporales
+    buffer_size = min(50, total_files // 20)  # Máximo 20 chunks
+    available_classes = set()
+    
+    # First pass: count total files
+    print("\nCounting files...")
+    total_files = sum(1 for recorder in os.listdir(data_dir) 
+                     if os.path.isdir(os.path.join(data_dir, recorder))
+                     for _ in os.listdir(os.path.join(data_dir, recorder))
+                     if _.endswith('.json'))
+    
+    processed_files = 0
+    print(f"\nProcessing {total_files} files...")
+    
     # Loop through recorder directories
     for recorder in os.listdir(data_dir):
         recorder_dir = os.path.join(data_dir, recorder)
         if os.path.isdir(recorder_dir):
             if selected_recorders and recorder not in selected_recorders:
-                continue  # Skip recorders not in the selected list
-            print(f"Processing recorder: {recorder}")
-            # Loop through JSON files in recorder directory
+                continue
+                
+            print(f"\nProcessing recorder: {recorder}")
+            
+            # Create a temporary list for this recorder
+            recorder_data = []
+            
             for filename in os.listdir(recorder_dir):
                 if filename.endswith('.json'):
+                    processed_files += 1
                     file_path = os.path.join(recorder_dir, filename)
-                    frames_data = load_and_filter_predictions(
-                        file_path,
-                        selected_class_ids,
-                        confidence_threshold,
-                        class_id_to_label
-                    )
-                    if frames_data:
-                        df_agg = aggregate_frames(frames_data, bin_size)
-                        if df_agg is not None:
-                            df_list.append(df_agg)
-    if df_list:
-        df_all = pd.concat(df_list, ignore_index=True)
+                    
+                    # Update progress every 10 files
+                    if processed_files % 10 == 0:
+                        print(f"Progress: {processed_files}/{total_files} files ({processed_files/total_files*100:.1f}%)")
+                        
+                    try:
+                        frames_data = load_and_filter_predictions(
+                            file_path,
+                            selected_class_names,
+                            confidence_threshold
+                        )
+                        
+                        if frames_data:
+                            # Update available classes
+                            for frame in frames_data:
+                                available_classes.update(k for k in frame.keys() if k != 'time')
+                            
+                            df_agg = aggregate_frames(frames_data, bin_size)
+                            if df_agg is not None:
+                                recorder_data.append(df_agg)
+                                
+                            # Process buffer if full
+                            if len(recorder_data) >= buffer_size:
+                                temp_df = pd.concat(recorder_data, ignore_index=True)
+                                df_buffer.append(temp_df)
+                                recorder_data = []  # Clear buffer
+                                gc.collect()  # Force garbage collection
+                                
+                    except Exception as e:
+                        print(f"\nError processing file {file_path}: {str(e)}")
+                        continue
+            
+            # Process remaining files in recorder
+            if recorder_data:
+                temp_df = pd.concat(recorder_data, ignore_index=True)
+                df_buffer.append(temp_df)
+                recorder_data = []
+                gc.collect()
+    
+    # Final processing
+    if df_buffer:
+        print("\nConcatenating all processed data...")
+        df_all = pd.concat(df_buffer, ignore_index=True)
+        del df_buffer  # Free memory
+        gc.collect()
+        
+        print(f"Found {len(available_classes)} classes in data")
+        print("\nClasses found:")
+        for cls in sorted(available_classes):
+            print(f"- {cls}")
+        return df_all, available_classes
     else:
-        df_all = pd.DataFrame()
-    return df_all
+        print("\nNo data was processed successfully")
+        return pd.DataFrame(), set()
 
-def load_and_filter_predictions(file_path, selected_class_ids, confidence_threshold, class_id_to_label):
+def load_and_filter_predictions(file_path, selected_class_names, confidence_threshold):
     with open(file_path, 'r') as f:
         data = json.load(f)
 
@@ -233,11 +417,11 @@ def load_and_filter_predictions(file_path, selected_class_ids, confidence_thresh
         if 'predictions' in frame:
             frame_time = frame['time']
             predictions = frame['predictions']
-            # Filter predictions based on selected class IDs and confidence threshold
+            # Filter predictions based on selected class names and confidence threshold
             filtered_preds = {
-                class_id_to_label[pred['class']]: pred['prob']
+                pred['class']: pred['prob']
                 for pred in predictions
-                if pred['class'] in selected_class_ids and pred['prob'] >= confidence_threshold
+                if pred['class'] in selected_class_names and pred['prob'] >= confidence_threshold
             }
             if filtered_preds:
                 # Adjust time to absolute datetime
@@ -249,29 +433,66 @@ def aggregate_frames(frames_data, bin_size):
     df = pd.DataFrame(frames_data)
     if df.empty:
         return None
+        
+    # Add adaptive binning based on data sparsity
+    total_duration = (df['time'].max() - df['time'].min()).total_seconds()
+    if total_duration < 3600:  # Less than 1 hour of data
+        print("Warning: Limited data detected in file")
+        
     # Create time bins
     df['time_bin'] = df['time'].dt.floor(f'{bin_size}S')
+    
+    # Count number of samples per bin
+    samples_per_bin = df.groupby('time_bin').size()
+    
+    # Print bin statistics for this file
+    print(f"\nBin statistics for file:")
+    print(f"- Average samples per bin: {samples_per_bin.mean():.2f}")
+    print(f"- Empty bins: {(samples_per_bin == 0).sum()}")
+    print(f"- Total bins: {len(samples_per_bin)}")
+    
     # Sum probabilities within each bin
     aggregation_columns = df.columns.difference(['time', 'time_bin'])
     df_agg = df.groupby('time_bin')[aggregation_columns].sum().reset_index()
+    
     return df_agg
 
 def fit_arima_models(df_agg, selected_class_id_to_name):
     from statsmodels.tsa.arima.model import ARIMA
+    from statsmodels.tsa.stattools import adfuller
     arima_models = {}
-    print("\n--- Analysis 1: Time Series Analysis using ARIMA models ---")
+    print("\nTime Series Analysis (frame interval: {:.3f}s)".format((320 * 32) / 48000))
+
+    df_agg.index = pd.date_range(start=df_agg.index[0], periods=len(df_agg), freq='213333U')  # microseconds
+    
     for cls in selected_class_id_to_name.values():
+        ts = df_agg[cls].fillna(0)
+        
+        # Check minimum data requirements
+        if ts.std() == 0:
+            print(f"✗ {cls} - No variation in data")
+            continue
+            
+        # Check for sufficient non-zero values
+        non_zero_percent = (ts > 0).sum() / len(ts) * 100
+        if non_zero_percent < 5:  # Less than 5% non-zero
+            print(f"✗ {cls} - Too sparse ({non_zero_percent:.1f}% non-zero)")
+            continue
+        
         try:
-            ts = df_agg[cls]
-            # Differencing to make the series stationary if needed
-            ts_diff = ts.diff().dropna()
-            # Fit ARIMA model (order can be tuned based on data)
-            model = ARIMA(ts_diff, order=(1, 0, 1))
+            # Check stationarity
+            adf_result = adfuller(ts)
+            is_stationary = adf_result[1] < 0.05
+            
+            # Fit model
+            order = (1,0,0) if is_stationary else (1,1,0)
+            model = ARIMA(ts, order=order)
             model_fit = model.fit()
             arima_models[cls] = model_fit
-            print(f"ARIMA model fitted for class '{cls}'.")
+            print(f"✓ {cls} - {'Stationary' if is_stationary else 'Non-stationary'}")
         except Exception as e:
-            print(f"Could not fit ARIMA model for '{cls}': {e}")
+            print(f"✗ {cls}")
+            
     return arima_models
 
 def compute_cross_correlations(df_agg, selected_class_id_to_name, max_lag=10):
@@ -289,27 +510,24 @@ def compute_cross_correlations(df_agg, selected_class_id_to_name, max_lag=10):
             ccf_values = ccf(ts1, ts2)[:max_lag]
             lags = np.arange(max_lag)
             cross_correlations[(cls1, cls2)] = (lags, ccf_values)
-            print(f"Computed cross-correlation between '{cls1}' and '{cls2}'.")
     return cross_correlations
 
 def perform_granger_causality_tests(df_agg, selected_class_id_to_name, maxlag=5):
     from statsmodels.tsa.stattools import grangercausalitytests
     granger_results = {}
-    print("\n--- Analysis 3: Granger Causality Tests ---")
-    class_names = list(selected_class_id_to_name.values())
-    for i in range(len(class_names)):
-        for j in range(len(class_names)):
+    print("\n3. Granger Causality Tests")
+    
+    for i, cls1 in enumerate(selected_class_id_to_name.values()):
+        for j, cls2 in enumerate(selected_class_id_to_name.values()):
             if i != j:
-                cls1 = class_names[i]
-                cls2 = class_names[j]
-                data = df_agg[[cls1, cls2]].dropna()
-                # Perform Granger causality test
-                try:
-                    test_result = grangercausalitytests(data, maxlag=maxlag, verbose=False)
-                    granger_results[(cls1, cls2)] = test_result
-                    print(f"Granger causality test performed between '{cls1}' and '{cls2}'.")
-                except Exception as e:
-                    print(f"Granger causality test failed between '{cls1}' and '{cls2}': {e}")
+                data = df_agg[[cls1, cls2]].fillna(0)
+                # Solo testar si hay suficiente variación
+                if data[cls1].std() > 0 and data[cls2].std() > 0:
+                    try:
+                        test_result = grangercausalitytests(data, maxlag=maxlag, verbose=False)
+                        granger_results[(cls1, cls2)] = test_result
+                    except:
+                        continue
     return granger_results
 
 def perform_pca(df_agg, selected_class_id_to_name):
@@ -338,6 +556,7 @@ def compute_correlations(df_agg, selected_class_id_to_name):
     return correlation_matrix
 
 def plot_time_series(df_agg, selected_class_id_to_name):
+    os.makedirs(os.path.join(BASE_DIR, 'figures'), exist_ok=True)
     class_names = list(selected_class_id_to_name.values())
     plt.figure(figsize=(12, 6))
     for cls in class_names:
@@ -346,25 +565,59 @@ def plot_time_series(df_agg, selected_class_id_to_name):
     plt.ylabel('Aggregated Probability')
     plt.title('Event Probabilities Over Time')
     plt.legend()
-    plt.show()
+    plt.savefig(os.path.join(BASE_DIR, 'figures', 'time_series.png'), dpi=300, bbox_inches='tight')
+    plt.close()
 
 def plot_correlation_matrix(correlation_matrix):
+    os.makedirs(os.path.join(BASE_DIR, 'figures'), exist_ok=True)
     plt.figure(figsize=(10, 8))
     sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm')
     plt.title('Correlation Matrix')
-    plt.show()
+    plt.savefig(os.path.join(BASE_DIR, 'figures', 'correlation_matrix.png'), dpi=300, bbox_inches='tight')
+    plt.close()
 
 def plot_cross_correlations(cross_correlations):
-    print("\nPlotting Cross-Correlation Functions...")
+    print("\nAnalyzing cross-correlations...")
+    
+    # Calculate significance threshold
+    conf_int = 1.96/np.sqrt(10) * 1.5  # 50% más estricto
+    
+    # Create summary of significant correlations
+    significant_correlations = []
+    
     for (cls1, cls2), (lags, ccf_values) in cross_correlations.items():
-        plt.figure()
-        plt.stem(lags, ccf_values, use_line_collection=True)
-        plt.xlabel('Lag')
-        plt.ylabel('Cross-correlation')
-        plt.title(f'Cross-correlation between {cls1} and {cls2}')
-        plt.show()
+        max_corr = float(np.max(np.abs(ccf_values)))  # Convert to Python float
+        max_lag = int(lags[np.argmax(np.abs(ccf_values))])  # Convert to Python int
+        
+        if max_corr > conf_int:
+            significant_correlations.append({
+                'class1': str(cls1),
+                'class2': str(cls2),
+                'correlation': float(max_corr),  # Ensure it's a Python float
+                'lag': int(max_lag)  # Ensure it's a Python int
+            })
+    
+    # Sort by correlation strength
+    significant_correlations.sort(key=lambda x: abs(x['correlation']), reverse=True)
+    
+    # Save summary
+    os.makedirs(os.path.join(BASE_DIR, 'results'), exist_ok=True)
+    with open(os.path.join(BASE_DIR, 'results', 'significant_correlations.json'), 'w') as f:
+        summary = {
+            'confidence_threshold': float(conf_int),  # Convert to Python float
+            'significant_pairs': significant_correlations
+        }
+        json.dump(summary, f, indent=2)
+    
+    # Print summary of top correlations
+    print(f"\nFound {len(significant_correlations)} significant correlations")
+    print("\nTop 10 strongest correlations:")
+    for i, corr in enumerate(significant_correlations[:10]):
+        print(f"{i+1}. {corr['class1']} - {corr['class2']}: "
+              f"correlation = {corr['correlation']:.3f} at lag {corr['lag']}")
 
 def plot_pca_results(pca_results, selected_class_id_to_name):
+    os.makedirs(os.path.join(BASE_DIR, 'figures'), exist_ok=True)
     principal_components = pca_results['principal_components']
     plt.figure(figsize=(8, 6))
     plt.scatter(principal_components[:, 0], principal_components[:, 1], alpha=0.5)
@@ -372,7 +625,23 @@ def plot_pca_results(pca_results, selected_class_id_to_name):
     plt.xlabel('Principal Component 1')
     plt.ylabel('Principal Component 2')
     plt.grid(True)
-    plt.show()
+    plt.savefig(os.path.join(BASE_DIR, 'figures', 'pca_results.png'), dpi=300, bbox_inches='tight')
+    plt.close()
 
 if __name__ == '__main__':
-    main()
+    from contextlib import redirect_stdout
+    
+    # Create logs directory
+    log_dir = os.path.join(BASE_DIR, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Create log file with timestamp
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = os.path.join(log_dir, f'analysis_log_{timestamp}.txt')
+    
+    with open(log_file, 'w') as f:
+        with redirect_stdout(f):
+            main()
+            
+    # Print to console that the log was saved
+    print(f"\nLog saved to: {log_file}")
