@@ -7,6 +7,7 @@ This script performs multiple analyses on sound event data:
 
 1. Time Series Analysis:
    - Plots the occurrence of sound events over time.
+   - Shows relative variations from mean for each class.
    - Helps observe daily trends, activity peaks, and common patterns.
 
 2. Basic Statistical Analysis:
@@ -195,6 +196,32 @@ def run_advanced_analysis(data_counts, selected_classes, threshold_str, recorder
             ax.set_xticklabels(x_labels, rotation=45, ha='right')
             plt.tight_layout()
             save_plot(fig, 'temporal_distribution')
+            plt.show()
+
+        # Plot relative variations
+            fig, ax = plt.subplots(figsize=(12, 6))
+            df_relative = pd.DataFrame()
+            
+            for column in df.columns:
+                mean_value = df[column].mean()
+                if mean_value > 0:  # Avoid division by zero
+                    # Calculate percentage difference from mean
+                    relative_changes = ((df[column] - mean_value) / mean_value) * 100
+                    df_relative[column] = relative_changes
+
+            for column in df_relative.columns:
+                ax.plot(range(len(df_relative.index)), df_relative[column], 
+                        marker='o', label=column)
+                
+            ax.axhline(y=0, color='black', linestyle='--', alpha=0.3)
+            ax.set_title(f'Relative Variation from Mean\n{recorder_info}, Threshold: {threshold_str}')
+            ax.set_xlabel('Hour (Active Recorders)')
+            ax.set_ylabel('Variation from Mean (%)')
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.set_xticks(range(len(df.index)))
+            ax.set_xticklabels(x_labels, rotation=45, ha='right')
+            plt.tight_layout()
+            save_plot(fig, 'relative_variation')
             plt.show()
 
         # 2. Basic Statistical Analysis
