@@ -2,6 +2,12 @@
 
 This repository provides tools for analyzing and visualizing sound events detected by recorders from the [Sounds of Home Dataset](https://www.cvssp.org/data/ai4s/sounds_of_home/). It offers a user-friendly interface that adheres to the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html), enabling users to explore, categorize, and analyze acoustic data in a structured manner.
 
+## Visualization Preview
+
+Here's a dynamic preview of the application interface:
+
+![SOH Visualization](assets/images/SOH_Visualization%20(06%20to%2023hs).gif)
+
 ## Interface Preview
 
 Here's a preview of the application interface:
