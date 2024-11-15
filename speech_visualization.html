@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<head>
+    <title>Sound Events Analysis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+        }
+
+        #main-wrapper {
+            width: 1200px;
+            margin: 0 auto;
+        }
+
+        #time-display {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        #speed-controls {
+            margin: 10px 0;
+        }
+
+        .speed-btn {
+            padding: 5px 15px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .speed-btn.active {
+            background-color: #007bff;
+            color: white;
+            border: none;
+        }
+
+        #chart {
+            width: 100%;
+            height: 800px;
+            border: 1px solid #ccc;
+        }
+
+        .cluster-label {
+            font-size: 12px;
+            fill: #333;
+            font-weight: bold;
+        }
+
+        .percentage-label {
+            font-size: 12px;
+            fill: #666;
+            font-weight: bold;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+</head>
+<body>
+    <div id="main-wrapper">
+        <div id="time-display"></div>
+        <div id="speed-controls">
+            <button class="speed-btn active" data-speed="slow">SLOW</button>
+            <button class="speed-btn" data-speed="medium">MEDIUM</button>
+            <button class="speed-btn" data-speed="fast">FAST</button>
+            <button class="speed-btn" data-speed="hourly">1HR</button>
+        </div>
+        <div id="chart"></div>
+    </div>
+
+    <script>
+        // Utility functions from Python scripts
+        function build_parent_child_mappings(ontology) {
+            var parent_to_children = {};
+            var child_to_parents = {};
+
+            ontology.forEach(function(class_item) {
+                var parent_id = class_item.id;
+                if (class_item.child_ids) {
+                    parent_to_children[parent_id] = class_item.child_ids;
+                    class_item.child_ids.forEach(function(child_id) {
+                        if (!child_to_parents[child_id]) {
+                            child_to_parents[child_id] = [];
+                        }
+                        child_to_parents[child_id].push(parent_id);
+                    });
+                }
+            });
+            return { parent_to_children: parent_to_children, child_to_parents: child_to_parents };
+        }
+
+        function get_all_subclasses(class_id, parent_to_children) {
+            var subclasses = [class_id];
+            if (parent_to_children[class_id]) {
+                parent_to_children[class_id].forEach(function(child_id) {
+                    var child_subclasses = get_all_subclasses(child_id, parent_to_children);
+                    child_subclasses.forEach(function(subclass) {
+                        if (subclasses.indexOf(subclass) === -1) {
+                            subclasses.push(subclass);
+                        }
+                    });
+                });
+            }
+            return subclasses;
+        }
+
+        // Time aggregation function
+        function aggregateTimeData(data, interval) {
+            var aggregated = {};
+
+            Object.keys(data).sort().forEach(function(minute) {
+                var timeParts = minute.split(':');
+                var hour = parseInt(timeParts[0], 10);
+                var min = parseInt(timeParts[1], 10);
+
+                // Round down to nearest interval
+                var aggregatedHour = hour;
+                var aggregatedMin = min;
+
+                if (interval >= 60) {
+                    // Aggregate by hour
+                    aggregatedHour = Math.floor(hour / (interval / 60)) * (interval / 60);
+                    aggregatedMin = 0;
+                } else {
+                    // Aggregate by minutes
+                    aggregatedMin = Math.floor(min / interval) * interval;
+                }
+
+                var timeKey = (aggregatedHour < 10 ? '0' + aggregatedHour : aggregatedHour) + ':' + (aggregatedMin < 10 ? '0' + aggregatedMin : aggregatedMin);
+
+                if (!aggregated[timeKey]) {
+                    aggregated[timeKey] = {};
+                }
+
+                // Sum counts for this time period
+                Object.keys(data[minute]).forEach(function(classId) {
+                    if (!aggregated[timeKey][classId]) {
+                        aggregated[timeKey][classId] = 0;
+                    }
+                    aggregated[timeKey][classId] += data[minute][classId];
+                });
+            });
+
+            return aggregated;
+        }
+
+        // Category aggregation function
+        function aggregateCategories(minuteData, categoryMap) {
+            var result = {};
+            Object.keys(minuteData).forEach(function(classId) {
+                var count = minuteData[classId];
+                var category = categoryMap[classId] || "others";
+                if (!result[category]) {
+                    result[category] = 0;
+                }
+                result[category] += count;
+            });
+            return result;
+        }
+
+        // Load all required data before starting visualization
+        d3.json("metadata/ontology.json", function(error1, ontology) {
+            if (error1) {
+                console.error("Error loading ontology.json:", error1);
+                return;
+            }
+            d3.csv("metadata/class_labels_indices.csv", function(error2, class_labels) {
+                if (error2) {
+                    console.error("Error loading class_labels_indices.csv:", error2);
+                    return;
+                }
+                d3.json("analysis_results/minute_analysis_results/minute_counts.json", function(error3, minute_data) {
+                    if (error3) {
+                        console.error("Error loading minute_counts.json:", error3);
+                        return;
+                    }
+
+                    // Proceed with the rest of the code
+                    // Build mappings
+                    var mappings = build_parent_child_mappings(ontology);
+                    var parent_to_children = mappings.parent_to_children;
+                    var child_to_parents = mappings.child_to_parents;
+
+                    // Map class labels to IDs and vice versa
+                    var class_label_to_id = {};
+                    var class_id_to_label = {};
+                    class_labels.forEach(function(d) {
+                        class_label_to_id[d.display_name.toLowerCase()] = d.mid;
+                        class_id_to_label[d.mid] = d.display_name;
+                    });
+
+                    // Define main categories and get their subclasses
+                    var categories = {
+                        "human_voice": {
+                            key: "human_voice",
+                            id: "/m/09l8g",
+                            label: "Human voice",
+                            color: "#0033ff",
+                            subclasses: get_all_subclasses("/m/09l8g", parent_to_children)
+                        },
+                        "domestic_sounds": {
+                            key: "domestic_sounds",
+                            id: "/t/dd00071",
+                            label: "Domestic sounds, home sounds",
+                            color: "#ffae00",
+                            subclasses: get_all_subclasses("/t/dd00071", parent_to_children)
+                        },
+                        "domestic_animals": {
+                            key: "domestic_animals",
+                            id: "/m/068hy",
+                            label: "Domestic animals, pets",
+                            color: "#4eff26",
+                            subclasses: get_all_subclasses("/m/068hy", parent_to_children)
+                        },
+                        "mechanisms": {
+                            key: "mechanisms",
+                            id: "/t/dd00077",
+                            label: "Mechanisms",
+                            color: "#d0021b",
+                            subclasses: get_all_subclasses("/t/dd00077", parent_to_children)
+                        },
+                        "liquid": {
+                            key: "liquid",
+                            id: "/m/04k94",
+                            label: "Liquid",
+                            color: "#bd10e0",
+                            subclasses: get_all_subclasses("/m/04k94", parent_to_children)
+                        },
+                        "speech": {
+                            key: "speech",
+                            id: "/m/09x0r",
+                            label: "Speech",
+                            color: "#00ccff",
+                            subclasses: get_all_subclasses("/m/09x0r", parent_to_children)
+                        },
+                        "door": {
+                            key: "door",
+                            id: "/m/02dgv",
+                            label: "Door",
+                            color: "#ff8b26",
+                            subclasses: get_all_subclasses("/m/02dgv", parent_to_children)
+                        },
+                        "alarm_clock": {
+                            key: "alarm_clock",
+                            id: "/m/046dlr",
+                            label: "Alarm clock",
+                            color: "#7f7f7f",
+                            subclasses: get_all_subclasses("/m/046dlr", parent_to_children)
+                        },
+                        "water_tap": {
+                            key: "water_tap",
+                            id: "/m/02jz0l",
+                            label: "Water tap, faucet",
+                            color: "#bcbd22",
+                            subclasses: get_all_subclasses("/m/02jz0l", parent_to_children)
+                        },
+                        "splash": {
+                            key: "splash",
+                            id: "/m/07rrlb6",
+                            label: "Splash, splatter",
+                            color: "#26ffdb",
+                            subclasses: get_all_subclasses("/m/07rrlb6", parent_to_children)
+                        },
+                        "environment": {
+                            key: "environment",
+                            id: "/t/dd00123",
+                            label: "Channel, environment and background",
+                            color: "#ab4a00",
+                            subclasses: get_all_subclasses("/t/dd00123", parent_to_children)
+                        },
+                        "silence": {
+                            key: "silence",
+                            id: "/m/028v0c",
+                            label: "Silence",
+                            color: "#d6d4d2"
+                        },
+                        "others": {
+                            key: "others",
+                            id: "others",
+                            label: "Other",
+                            color: "#808080"
+                        }
+                    };
+
+                    // Build category mapping for each class ID
+                    var categoryMap = {};
+                    Object.keys(categories).forEach(function(catKey) {
+                        var category = categories[catKey];
+                        if (category.subclasses) {
+                            category.subclasses.forEach(function(classId) {
+                                categoryMap[classId] = catKey;
+                            });
+                        } else if (category.id !== "others") {
+                            categoryMap[category.id] = catKey;
+                        }
+                    });
+
+                    // Process data for different time intervals
+                    var processedData = {};
+                    ["1", "5", "15", "60"].forEach(function(interval) {
+                        var aggregatedData = aggregateTimeData(minute_data, parseInt(interval));
+                        processedData[interval] = aggregatedData;
+                    });
+
+                    // Visualization setup
+                    var width = 1200,
+                        height = 800,
+                        num_nodes = 150,
+                        node_radius = 5,
+                        padding = 1,
+                        cluster_padding = 5; // Reduced cluster padding
+
+                    // Speed settings with fixed refresh rate
+                    var speeds = {
+                        slow: { interval: "1", delay: 1000 },
+                        medium: { interval: "5", delay: 1500 },
+                        fast: { interval: "15", delay: 2000 },
+                        hourly: { interval: "60", delay: 4000 } // New hourly mode with 4-second delay
+                    };
+                    var current_speed = speeds.slow;
+
+                    // Define cluster positions in a circle around center
+                    var centerX = width / 2;
+                    var centerY = height / 2;
+                    var radius = 300; // Adjusted radius
+
+                    // Position clusters in a circle
+                    var angle = 0;
+                    var angleStep = (2 * Math.PI) / (Object.keys(categories).length - 1);
+                    Object.keys(categories).forEach(function(key) {
+                        if (key !== "others") {
+                            categories[key].x = centerX + radius * Math.cos(angle);
+                            categories[key].y = centerY + radius * Math.sin(angle);
+                            angle += angleStep;
+                        } else {
+                            categories[key].x = centerX;
+                            categories[key].y = centerY;
+                        }
+                    });
+
+                    // Create SVG
+                    var svg = d3.select("#chart").append("svg")
+                        .attr("width", width)
+                        .attr("height", height);
+
+                    // Initialize nodes at center
+                    var nodes = d3.range(num_nodes).map(function(i) {
+                        return {
+                            id: i,
+                            x: centerX + Math.random(),
+                            y: centerY + Math.random(),
+                            radius: node_radius,
+                            cluster: "others"
+                        };
+                    });
+
+                    // Create force layout
+                    var force = d3.layout.force()
+                        .nodes(nodes)
+                        .size([width, height])
+                        .gravity(0)
+                        .charge(0)
+                        .friction(0.75) // Increased friction for smoother movement
+                        .on("tick", tick)
+                        .start();
+
+                    // Create circles for nodes
+                    var circle = svg.selectAll("circle")
+                        .data(nodes)
+                        .enter().append("circle")
+                        .attr("r", node_radius)
+                        .style("fill", function(d) { return categories[d.cluster].color; });
+
+                    // Create group for each cluster label
+                    var labelGroups = svg.selectAll(".label-group")
+                        .data(Object.values(categories))
+                        .enter().append("g")
+                        .attr("class", "label-group")
+                        .attr("transform", function(d) {
+                            return "translate(" + d.x + "," + (d.y + 70) + ")"; // Moved labels below clusters
+                        });
+
+                    // Add cluster name labels
+                    labelGroups.append("text")
+                        .attr("class", "cluster-label")
+                        .attr("text-anchor", "middle")
+                        .attr("dy", "0em")
+                        .text(function(d) { return d.label; });
+
+                    // Add percentage labels
+                    labelGroups.append("text")
+                        .attr("class", "percentage-label")
+                        .attr("text-anchor", "middle")
+                        .attr("dy", "1.2em")
+                        .text("0%");
+
+                    function tick(e) {
+                        circle
+                            .each(gravity(0.3 * e.alpha)) // Adjusted gravity strength
+                            .each(collide(0.5))
+                            .attr("cx", function(d) { return d.x; })
+                            .attr("cy", function(d) { return d.y; })
+                            .style("fill", function(d) { return categories[d.cluster].color; });
+                    }
+
+                    function gravity(alpha) {
+                        return function(d) {
+                            var cluster = categories[d.cluster];
+                            d.y += (cluster.y - d.y) * alpha;
+                            d.x += (cluster.x - d.x) * alpha;
+                        };
+                    }
+
+                    function collide(alpha) {
+                        var quadtree = d3.geom.quadtree(nodes);
+                        return function(d) {
+                            var r = d.radius + node_radius + Math.max(padding, cluster_padding),
+                                nx1 = d.x - r,
+                                nx2 = d.x + r,
+                                ny1 = d.y - r,
+                                ny2 = d.y + r;
+                            quadtree.visit(function(quad, x1, y1, x2, y2) {
+                                if (quad.point && (quad.point !== d)) {
+                                    var x = d.x - quad.point.x,
+                                        y = d.y - quad.point.y,
+                                        l = Math.sqrt(x * x + y * y),
+                                        r = d.radius + quad.point.radius + (d.cluster === quad.point.cluster ? padding : cluster_padding);
+                                    if (l < r) {
+                                        l = (l - r) / l * alpha;
+                                        d.x -= x *= l;
+                                        d.y -= y *= l;
+                                        quad.point.x += x;
+                                        quad.point.y += y;
+                                    }
+                                }
+                                return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+                            });
+                        };
+                    }
+
+                    var timePoints = Object.keys(processedData[current_speed.interval]).sort();
+                    var currentTimeIndex = 0;
+                    var timer;
+
+                    function updateNodes() {
+                        var minute = timePoints[currentTimeIndex];
+                        var minuteData = processedData[current_speed.interval][minute];
+
+                        // Aggregate counts into main categories
+                        var aggregatedData = aggregateCategories(minuteData, categoryMap);
+
+                        // Calculate total events for this time period
+                        var totalEvents = 0;
+                        Object.keys(aggregatedData).forEach(function(catKey) {
+                            totalEvents += aggregatedData[catKey];
+                        });
+
+                        // Handle case when totalEvents is zero
+                        if (totalEvents === 0) {
+                            totalEvents = 1; // Avoid division by zero
+                        }
+
+                        // Calculate percentages and node assignments
+                        var nodeAssignments = {};
+                        var percentages = {};
+                        var remainingNodes = num_nodes;
+                        var remainingPercentage = 100;
+
+                        Object.keys(categories).forEach(function(catKey) {
+                            if (catKey === "others") return;
+
+                            var count = aggregatedData[catKey] || 0;
+                            var percentage = (count / totalEvents) * 100;
+                            var nodesCount = Math.round((percentage / 100) * num_nodes);
+
+                            nodeAssignments[catKey] = nodesCount;
+                            percentages[categories[catKey].id] = percentage; // Use category.id as key
+                            remainingNodes -= nodesCount;
+                            remainingPercentage -= percentage;
+                        });
+
+                        // Assign remaining nodes to "others"
+                        nodeAssignments["others"] = remainingNodes;
+                        percentages["others"] = remainingPercentage;
+
+                        // Update node clusters
+                        var nodeIndex = 0;
+                        Object.keys(nodeAssignments).forEach(function(catKey) {
+                            var count = nodeAssignments[catKey];
+                            for (var i = 0; i < count; i++) {
+                                if (nodeIndex < nodes.length) {
+                                    nodes[nodeIndex].cluster = catKey;
+                                    nodeIndex++;
+                                }
+                            }
+                        });
+
+                        // Update percentage labels
+                        svg.selectAll(".percentage-label")
+                            .text(function(d) {
+                                return Math.round(percentages[d.id] || 0) + "%";
+                            });
+
+                        // Update time display
+                        d3.select("#time-display").text(minute);
+
+                        // Resume the force layout
+                        force.resume();
+                    }
+
+                    // Speed control handlers
+                    d3.selectAll(".speed-btn").on("click", function() {
+                        var speed = d3.select(this).attr("data-speed");
+                        d3.selectAll(".speed-btn").classed("active", false);
+                        d3.select(this).classed("active", true);
+                        current_speed = speeds[speed];
+
+                        // Update time points based on new interval
+                        timePoints = Object.keys(processedData[current_speed.interval]).sort();
+                        currentTimeIndex = 0;
+
+                        // Restart timer with new speed
+                        clearInterval(timer);
+                        timer = setInterval(step, current_speed.delay);
+                    });
+
+                    function step() {
+                        updateNodes();
+                        currentTimeIndex = (currentTimeIndex + 1) % timePoints.length;
+                    }
+
+                    // Start the visualization
+                    timer = setInterval(step, current_speed.delay);
+
+                });
+            });
+        });
+    </script>
+</body>
+</html>
