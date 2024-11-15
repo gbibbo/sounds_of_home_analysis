@@ -8,6 +8,27 @@ Here's a dynamic preview of the application interface:
 
 ![SOH Visualization](assets/images/SOH_Visualization%20(06%20to%2023hs).gif)
 
+## Accessing the Application on Your Local Machine
+
+To view and interact with the application locally:
+
+1. **Start the Local Server**:
+   - After downloading the repository and installing any necessary dependencies as per the installation instructions, navigate to the root directory of the project via a command terminal.
+   - You will need to start a local server. If you have Python installed, you can quickly start a server with the following command:
+     ```bash
+     # For Python 3.x
+     python -m http.server
+     ```
+     - This command will start a local server on port 8000.
+
+2. **Access the Application**:
+   - Open your web browser and go to [http://localhost:8000](http://localhost:8000).
+   - Navigate to the specific HTML file that launches the application interface, for example:
+     ```
+     http://localhost:8000/path_to_your_html_file.html
+     ```
+   - Replace `path_to_your_html_file.html` with the actual path to the HTML file within your project directory that serves the application's interface.
+
 ## Interface Preview
 
 Here's a preview of the application interface:
