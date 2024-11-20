@@ -53,7 +53,7 @@ python scripts/main.py --gui
  - Days: Specify analysis timeframe
 
 2. **Generate Analysis**:
- - Click "Plot and Analysis"
+ - Click "Plot" for normal plot, or "Plot and Analysis" for: time series analysis, basic statistical analysis, correlation analysis, PCA, heatmaps and clustering, peak activity analysis
  - View graph showing event distribution
  - Results automatically save to `assets/images` directory
 
