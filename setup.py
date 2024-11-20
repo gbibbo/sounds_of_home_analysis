@@ -1,5 +1,3 @@
-# setup.py
-
 from setuptools import setup, find_packages
 
 setup(
@@ -15,17 +13,28 @@ setup(
     package_dir={'src': 'src'},
     include_package_data=True,
     install_requires=[
-        'matplotlib>=3.0',
-        'numpy>=1.17',
-        'tqdm>=4.0',
+        'numpy>=2.0.2',
+        'matplotlib>=3.9.2',
         'pandas>=1.0',
-        'requests>=2.0',
-        'beautifulsoup4>=4.0',
-        'lxml>=4.0',
+        'tqdm>=4.66.5',
+        'pillow>=11.0.0',
+        'scipy>=1.14.1',
+        'contourpy>=1.3.1',
+        'cycler>=0.12.1',
+        'fonttools>=4.55.0',
+        'kiwisolver>=1.4.7',
+        'networkx>=3.4.2',
+        'packaging>=24.2',
+        'python-dateutil>=2.9.0',
+        'PyYAML>=5.4.1',
+        'scikit-learn>=1.5.2',
+        'six>=1.16.0',
+        'typing_extensions>=4.12.2'
     ],
     classifiers=[
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
+    python_requires='>=3.6',
 )

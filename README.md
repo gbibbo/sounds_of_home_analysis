@@ -1,6 +1,61 @@
 # Sounds of Home Analysis
 
-This repository provides tools for analyzing and visualizing sound events detected by recorders from the [Sounds of Home Dataset](https://www.cvssp.org/data/ai4s/sounds_of_home/). It offers a user-friendly interface that adheres to the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html), enabling users to explore, categorize, and analyze acoustic data in a structured manner.
+This repository provides tools for analyzing and visualizing sound events detected by recorders from the [Sounds of Home Dataset](https://www.cvssp.org/data/ai4s/sounds_of_home/). The analysis framework leverages the hierarchical structure of the [AudioSet ontology](https://research.google.com/audioset/ontology/index.html), enabling systematic exploration and categorization of domestic soundscapes.
+
+## Interactive Analysis Interface
+
+The main analysis interface allows comprehensive exploration of the dataset:
+
+![Application Interface](assets/images/interface.png)
+
+Generated visualizations display sound event distributions:
+
+![Example Plot](assets/images/plot.png)
+
+## Installation and Setup
+
+1. **Environment Requirements**:
+  - Python 3.6 or higher
+  - Git (for cloning the repository)
+
+2. **Install Project**:
+```bash
+git clone https://github.com/gbibbo/sounds_of_home_analysis.git
+cd sounds_of_home_analysis
+pip install -e .
+```
+
+3. **Download Dataset**:
+
+  - Visit the Sounds of Home Dataset page
+  - Download the prediction JSON files
+  - Create a 'data' directory in the repository root:
+```bash
+mkdir data
+```
+  - Place downloaded JSON files in the 'data' directory
+
+4. **Configure Data Path**:
+  - Open `src/config.py`
+  - Set `PREDICTIONS_ROOT_DIR = 'data'`
+
+5. **Launch Interface**:
+```bash
+python scripts/main.py --gui
+```
+
+## Using the Interface
+
+1. **Select Parameters**:
+ - Confidence Threshold: Filter events by prediction confidence
+ - Recorders: Choose specific recording devices
+ - Sound Categories: Select event types to analyze
+ - Time Period: Specify analysis timeframe
+
+2. **Generate Analysis**:
+ - Click "Run Analysis"
+ - View graph showing event distribution
+ - Results automatically save to `analysis_results` directory
 
 ## Interface Preview
 
