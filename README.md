@@ -12,7 +12,7 @@ Generated visualizations display sound event distributions:
 
 ![Example Plot](assets/images/plot.png)
 
-## Installation and Setup
+### Installation and Setup
 
 1. **Environment Requirements**:
   - Python 3.6 or higher
@@ -44,7 +44,7 @@ mkdir data
 python scripts/main.py --gui
 ```
 
-## Using the Interface
+### Using the Interface
 
 1. **Select Parameters**:
  - Confidence Threshold: Filter events by prediction confidence
@@ -53,10 +53,129 @@ python scripts/main.py --gui
  - Days: Specify analysis timeframe
 
 2. **Generate Analysis**:
- - Click "Plot" for normal plot, or "Plot and Analysis" for: time series analysis, basic statistical analysis, correlation analysis, PCA, heatmaps and clustering, peak activity analysis
+ - Click `Plot` for time series analysis, or `Plot and Analysis` for time series analysis, basic statistical analysis, correlation analysis, PCA, heatmaps and clustering, peak activity analysis
  - View graph showing event distribution
  - Results automatically save to `assets/images` directory
 
+## Analysis Scripts
+
+### Batch Analysis
+
+The `batch_analysis.py` script performs analysis across multiple confidence thresholds:
+
+1. **Threshold Options**:
+- Fixed thresholds: [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
+- Variable threshold: Adapts based on AudioSet label quality
+  - Uses linear interpolation:
+    ```python
+    threshold = 0.2 + (0.5 - 0.2) * (label_quality / 100)
+    ```
+  - Example:
+    - For 100% quality label: threshold = 0.5
+    - For 50% quality label: threshold = 0.35
+    - For 0% quality label: threshold = 0.2
+
+2. **Usage**:
+```bash
+python scripts/batch_analysis.py
+```
+
+3. **Output Directory Structure**:
+```bash
+analysis_results/
+└── batch_analysis_results/
+    ├── analysis_results_threshold_0.0.json
+    ├── analysis_results_threshold_0.05.json
+    ...
+    ├── analysis_results_threshold_0.5.json
+    └── analysis_results_threshold_variable.json
+```
+
+### Granger Causality Analysis
+The `granger.py` script analyzes temporal relationships between sound events:
+
+1. **Analysis Features**:
+- Time Series Analysis using ARIMA models
+- Cross-Correlation Functions with Lag Analysis
+- Granger Causality Tests
+- Principal Component Analysis (PCA)
+- UMAP and t-SNE visualizations
+- Animated temporal evolution visualization
+
+2. **Usage**:
+```bash
+python scripts/granger.py
+```
+3. **Output Directory Structure**:
+```bash
+granger/
+├── figures/
+│   ├── time_series.png
+│   ├── correlation_matrix.png
+│   ├── top_correlations.png
+│   ├── pca_results.png
+│   ├── umap_results.png
+│   ├── tsne_results.png
+│   ├── umap_frames/
+│   └── umap_animation_custom.gif
+├── results/
+│   ├── significant_correlations.json
+│   ├── granger_causality_results.json
+│   └── umap_intermediate_data.pkl
+└── logs/
+    └── analysis_log_[timestamp].txt
+```
+
+### Minute-Level Analysis
+The `generate_minute_data.py` script processes audio events with minute-level resolution:
+
+1. **Features**:
+- Aggregates detection counts across all recorders
+- Applies quality-based confidence thresholds
+- Processes individual AudioSet classes without ontology aggregation
+
+2. **Usage**:
+```bash
+python scripts/generate_minute_data.py
+```
+
+3. **Output**:
+```bash
+analysis_results/
+└── minute_analysis_results/
+    └── minute_counts.json  # Minute-by-minute event counts
+```
+
+### Events Statistics
+The `events_statistics.py` script generates comprehensive statistical information about sound event occurrences:
+1. **Analysis Features**:
+- Processes multiple JSON prediction files
+- Handles hierarchical AudioSet relationships
+- Applies confidence thresholds
+- Generates category and subcategory statistics
+- Creates visualization plots
+
+2. **Usage**:
+```bash
+python scripts/events_statistics.py
+```
+
+3. **Output Directory Structure**:
+```bash
+analysis_results/
+└── events_statistics_results/
+    ├── events_statistics_results.json
+    ├── main_categories.png          # Overall category distribution
+    └── subcategories_*.png         # Detailed subcategory analysis
+```
+4. **Configuration Options**:
+
+- Adjust in `src/config.py`:
+  - `PREDICTIONS_ROOT_DIR`: Data location
+  - `DEFAULT_CONFIDENCE_THRESHOLD`: Base threshold
+  - `USE_LABEL_QUALITY_THRESHOLDS`: Enable/disable quality-based thresholds
+  - `GENERATE_GRAPHS`: Control visualization output
+  - `CUSTOM_CATEGORIES`: Define category structure
 ## Visualization Preview
 
 Here's a dynamic preview of the application interface:
