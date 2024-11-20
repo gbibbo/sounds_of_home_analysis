@@ -1,3 +1,5 @@
+<!--speech_visualization.html-->
+
 <!DOCTYPE html>
 <head>
     <title>Sound Events Analysis</title>
@@ -9,35 +11,72 @@
         }
 
         #main-wrapper {
-            width: 1200px;
+            width: 800px;
             margin: 0 auto;
+        }
+
+        #controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         #time-display {
             font-size: 24px;
             font-weight: bold;
-            margin: 10px 0;
+            min-width: 80px;
+            margin-left: auto;
+        }
+
+        #progress-bar-wrapper {
+            width: 500px;
+            display: flex;
+            align-items: center;
+        }
+
+        #progress-bar {
+            width: 100%;
         }
 
         #speed-controls {
-            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+            margin-left: 0;
         }
 
         .speed-btn {
-            padding: 5px 15px;
-            margin-right: 10px;
+            padding: 8px 20px;
             cursor: pointer;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            font-size: 14px;
         }
 
         .speed-btn.active {
             background-color: #007bff;
             color: white;
-            border: none;
+            border-color: #0056b3;
+        }
+
+        #play-pause-button {
+            padding: 8px 20px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            min-width: 80px;
         }
 
         #chart {
             width: 800px;
-            height: 800px;
             height: 800px;
             border: 1px solid #ccc;
         }
@@ -58,18 +97,31 @@
 </head>
 <body>
     <div id="main-wrapper">
-        <div id="time-display"></div>
-        <div id="speed-controls">
-            <button class="speed-btn active" data-speed="slow">SLOW</button>
-            <button class="speed-btn" data-speed="medium">MEDIUM</button>
-            <button class="speed-btn" data-speed="fast">FAST</button>
-            <button class="speed-btn" data-speed="hourly">1HR</button>
+        <div id="controls">
+            <!-- Primera fila: controles de velocidad -->
+            <div class="control-row">
+                <div id="speed-controls">
+                    <button class="speed-btn active" data-speed="slow">SLOW</button>
+                    <button class="speed-btn" data-speed="medium">MEDIUM</button>
+                    <button class="speed-btn" data-speed="fast">FAST</button>
+                    <button class="speed-btn" data-speed="hourly">1HR</button>
+                </div>
+            </div>
+
+            <!-- Segunda fila: Play, barra de progreso y hora -->
+            <div class="control-row">
+                <button id="play-pause-button">Play</button>
+                <div id="progress-bar-wrapper">
+                    <input type="range" id="progress-bar" min="0" max="100" value="0" step="1">
+                </div>
+                <div id="time-display"></div>
+            </div>
         </div>
         <div id="chart"></div>
     </div>
 
     <script>
-        // Utility functions from Python scripts
+        // Funciones de utilidad
         function build_parent_child_mappings(ontology) {
             var parent_to_children = {};
             var child_to_parents = {};
@@ -89,22 +141,45 @@
             return { parent_to_children: parent_to_children, child_to_parents: child_to_parents };
         }
 
+        function get_ancestors(class_id, child_to_parents, memo) {
+            if (!memo) memo = {};
+            if (memo[class_id]) return memo[class_id];
+
+            var ancestors = [];
+            var parents = child_to_parents[class_id] || [];
+            parents.forEach(function(parent_id) {
+                if (ancestors.indexOf(parent_id) === -1) {
+                    ancestors.push(parent_id);
+                    var parent_ancestors = get_ancestors(parent_id, child_to_parents, memo);
+                    parent_ancestors.forEach(function(ancestor) {
+                        if (ancestors.indexOf(ancestor) === -1) {
+                            ancestors.push(ancestor);
+                        }
+                    });
+                }
+            });
+            memo[class_id] = ancestors;
+            return ancestors;
+        }
+
         function get_all_subclasses(class_id, parent_to_children) {
             var subclasses = [class_id];
-            if (parent_to_children[class_id]) {
-                parent_to_children[class_id].forEach(function(child_id) {
+            var children = parent_to_children[class_id] || [];
+            children.forEach(function(child_id) {
+                if (subclasses.indexOf(child_id) === -1) {
+                    subclasses.push(child_id);
                     var child_subclasses = get_all_subclasses(child_id, parent_to_children);
                     child_subclasses.forEach(function(subclass) {
                         if (subclasses.indexOf(subclass) === -1) {
                             subclasses.push(subclass);
                         }
                     });
-                });
-            }
+                }
+            });
             return subclasses;
         }
 
-        // Time aggregation function
+        // Función para agregar datos de tiempo
         function aggregateTimeData(data, interval) {
             var aggregated = {};
 
@@ -113,16 +188,16 @@
                 var hour = parseInt(timeParts[0], 10);
                 var min = parseInt(timeParts[1], 10);
 
-                // Round down to nearest interval
+                // Redondear al intervalo más cercano
                 var aggregatedHour = hour;
                 var aggregatedMin = min;
 
                 if (interval >= 60) {
-                    // Aggregate by hour
+                    // Agregar por hora
                     aggregatedHour = Math.floor(hour / (interval / 60)) * (interval / 60);
                     aggregatedMin = 0;
                 } else {
-                    // Aggregate by minutes
+                    // Agregar por minutos
                     aggregatedMin = Math.floor(min / interval) * interval;
                 }
 
@@ -132,7 +207,7 @@
                     aggregated[timeKey] = {};
                 }
 
-                // Sum counts for this time period
+                // Sumar conteos para este periodo
                 Object.keys(data[minute]).forEach(function(classId) {
                     if (!aggregated[timeKey][classId]) {
                         aggregated[timeKey][classId] = 0;
@@ -144,44 +219,29 @@
             return aggregated;
         }
 
-        // Category aggregation function
-        function aggregateCategories(minuteData, categoryMap) {
-            var result = {};
-            Object.keys(minuteData).forEach(function(classId) {
-                var count = minuteData[classId];
-                var category = categoryMap[classId] || "others";
-                if (!result[category]) {
-                    result[category] = 0;
-                }
-                result[category] += count;
-            });
-            return result;
-        }
-
-        // Load all required data before starting visualization
+        // Cargar todos los datos necesarios antes de iniciar la visualización
         d3.json("metadata/ontology.json", function(error1, ontology) {
             if (error1) {
-                console.error("Error loading ontology.json:", error1);
+                console.error("Error cargando ontology.json:", error1);
                 return;
             }
             d3.csv("metadata/class_labels_indices.csv", function(error2, class_labels) {
                 if (error2) {
-                    console.error("Error loading class_labels_indices.csv:", error2);
+                    console.error("Error cargando class_labels_indices.csv:", error2);
                     return;
                 }
                 d3.json("analysis_results/minute_analysis_results/minute_counts.json", function(error3, minute_data) {
                     if (error3) {
-                        console.error("Error loading minute_counts.json:", error3);
+                        console.error("Error cargando minute_counts.json:", error3);
                         return;
                     }
 
-                    // Proceed with the rest of the code
-                    // Build mappings
+                    // Construir mapeos
                     var mappings = build_parent_child_mappings(ontology);
                     var parent_to_children = mappings.parent_to_children;
                     var child_to_parents = mappings.child_to_parents;
 
-                    // Map class labels to IDs and vice versa
+                    // Mapear etiquetas de clase a IDs y viceversa
                     var class_label_to_id = {};
                     var class_id_to_label = {};
                     class_labels.forEach(function(d) {
@@ -189,104 +249,70 @@
                         class_id_to_label[d.mid] = d.display_name;
                     });
 
-                    // Define main categories and get their subclasses
-                    var categories = {
-                        "human_voice": {
-                            key: "human_voice",
-                            id: "/m/09l8g",
-                            label: "Human voice",
-                            color: "#0033ff",
-                            subclasses: get_all_subclasses("/m/09l8g", parent_to_children)
-                        },
-                        "domestic_sounds": {
-                            key: "domestic_sounds",
-                            id: "/t/dd00071",
-                            label: "Domestic sounds, home sounds",
-                            color: "#ffae00",
-                            subclasses: get_all_subclasses("/t/dd00071", parent_to_children)
-                        },
-                        "domestic_animals": {
-                            key: "domestic_animals",
-                            id: "/m/068hy",
-                            label: "Domestic animals, pets",
-                            color: "#4eff26",
-                            subclasses: get_all_subclasses("/m/068hy", parent_to_children)
-                        },
-                        "mechanisms": {
-                            key: "mechanisms",
-                            id: "/t/dd00077",
-                            label: "Mechanisms",
-                            color: "#d0021b",
-                            subclasses: get_all_subclasses("/t/dd00077", parent_to_children)
-                        },
-                        "liquid": {
-                            key: "liquid",
-                            id: "/m/04k94",
-                            label: "Liquid",
-                            color: "#bd10e0",
-                            subclasses: get_all_subclasses("/m/04k94", parent_to_children)
-                        },
-                        "speech": {
-                            key: "speech",
-                            id: "/m/09x0r",
-                            label: "Speech",
-                            color: "#00ccff",
-                            subclasses: get_all_subclasses("/m/09x0r", parent_to_children)
-                        },
-                        "door": {
-                            key: "door",
-                            id: "/m/02dgv",
-                            label: "Door",
-                            color: "#ff8b26",
-                            subclasses: get_all_subclasses("/m/02dgv", parent_to_children)
-                        },
-                        "alarm_clock": {
-                            key: "alarm_clock",
-                            id: "/m/046dlr",
-                            label: "Alarm clock",
-                            color: "#7f7f7f",
-                            subclasses: get_all_subclasses("/m/046dlr", parent_to_children)
-                        },
-                        "water_tap": {
-                            key: "water_tap",
-                            id: "/m/02jz0l",
-                            label: "Water tap, faucet",
-                            color: "#bcbd22",
-                            subclasses: get_all_subclasses("/m/02jz0l", parent_to_children)
-                        },
-                        "splash": {
-                            key: "splash",
-                            id: "/m/07rrlb6",
-                            label: "Splash, splatter",
-                            color: "#26ffdb",
-                            subclasses: get_all_subclasses("/m/07rrlb6", parent_to_children)
-                        },
-                        "environment": {
-                            key: "environment",
-                            id: "/t/dd00123",
-                            label: "Channel, environment and background",
-                            color: "#ab4a00",
-                            subclasses: get_all_subclasses("/t/dd00123", parent_to_children)
-                        },
-                        "silence": {
-                            key: "silence",
-                            id: "/m/028v0c",
-                            label: "Silence",
-                            color: "#d6d4d2"
-                        },
-                        "others": {
-                            key: "others",
-                            id: "others",
-                            label: "Other",
-                            color: "#808080"
-                        }
-                    };
+                    // Crear mapeo de nombres de clase a IDs usando la ontología
+                    var name_to_class_id = {};
+                    ontology.forEach(function(item) {
+                        name_to_class_id[item.name.toLowerCase()] = item.id;
+                    });
 
-                    // Build category mapping for each class ID
+                    // Definir categorías usando solo 'name' y 'color'
+                    var categoryDefinitions = [
+                        { name: "Human voice", color: "#0033ff" },
+                        { name: "Domestic sounds, home sounds", color: "#ffae00" },
+                        { name: "Animals", color: "#4eff26" },
+                        { name: "Mechanisms", color: "#d0021b" },
+                        { name: "Tools", color: "#bd10e0" },
+                        { name: "Human locomotion", color: "#00ccff" },
+                        { name: "Alarm", color: "#ff8b26" },
+                        { name: "Engine", color: "#7f7f7f" },
+                        { name: "Source-ambiguous sounds", color: "#26ffdb" },
+                        { name: "Music", color: "#ab4a00" },
+                        { name: "Silence", color: "#d6d4d2" },
+                        { name: "Channel, environment and background", color: "#ab4a00" },
+                        { name: "Other", color: "#808080" }
+                    ];
+
+                    // Crear categorías
+                    var categories = {};
+                    categoryDefinitions.forEach(function(catDef, index) {
+                        var className = catDef.name.toLowerCase();
+                        var classId = name_to_class_id[className];
+                        var key = className.replace(/[\s,]/g, '_'); // Generar key automáticamente
+                        if (classId) {
+                            categories[key] = {
+                                key: key,
+                                id: classId,
+                                label: catDef.name,
+                                color: catDef.color,
+                                subclasses: []
+                            };
+                        } else if (catDef.name === "Other") {
+                            categories[key] = {
+                                key: key,
+                                id: "others",
+                                label: catDef.name,
+                                color: catDef.color,
+                                subclasses: []
+                            };
+                        } else {
+                            console.warn("Nombre de clase no encontrado en la ontología:", catDef.name);
+                        }
+                    });
+
+                    // Obtener todas las subclases para cada categoría
+                    Object.keys(categories).forEach(function(catKey) {
+                        var category = categories[catKey];
+                        if (category.id && category.id !== "others") {
+                            var subclasses = get_all_subclasses(category.id, parent_to_children);
+                            category.subclasses = subclasses;
+                        }
+                    });
+
+                    // Construir mapeo de categorías para cada ID de clase
                     var categoryMap = {};
                     Object.keys(categories).forEach(function(catKey) {
                         var category = categories[catKey];
-                        if (category.subclasses) {
+                        if (category.subclasses && category.subclasses.length > 0) {
                             category.subclasses.forEach(function(classId) {
                                 categoryMap[classId] = catKey;
                             });
@@ -295,40 +321,100 @@
                         }
                     });
 
-                    // Process data for different time intervals
+                    console.log("Category Map:", categoryMap);
+
+                    // Función para agregar categorías considerando ancestros y categorías definidas
+                    function aggregateCategories(minuteData, categories, categoryMap, child_to_parents) {
+                        var result = {};
+                        // Inicializar conteos en cero
+                        Object.keys(categories).forEach(function(catKey) {
+                            result[catKey] = 0;
+                        });
+
+                        // Para memoización de ancestros
+                        var memo = {};
+
+                        // Para cada classId en minuteData
+                        Object.keys(minuteData).forEach(function(classId) {
+                            var count = minuteData[classId];
+
+                            // Lista de categorías a actualizar
+                            var categoriesToUpdate = [];
+
+                            // Si la clase misma está en las categorías definidas
+                            var catKey = categoryMap[classId];
+                            if (catKey) {
+                                categoriesToUpdate.push(catKey);
+                            }
+
+                            // Obtener ancestros de la clase (sin incluir la clase misma)
+                            var ancestors = get_ancestors(classId, child_to_parents, memo);
+
+                            // Para cada ancestro, si está en las categorías, agregarlo
+                            ancestors.forEach(function(ancestorId) {
+                                var ancestorCatKey = categoryMap[ancestorId];
+                                if (ancestorCatKey) {
+                                    categoriesToUpdate.push(ancestorCatKey);
+                                }
+                            });
+
+                            // Eliminar duplicados
+                            categoriesToUpdate = categoriesToUpdate.filter(function(item, pos) {
+                                return categoriesToUpdate.indexOf(item) === pos;
+                            });
+
+                            // Sumar el conteo a las categorías correspondientes
+                            categoriesToUpdate.forEach(function(catKey) {
+                                result[catKey] += count;
+                            });
+
+                            // Depuración
+                            console.log("Class ID:", classId);
+                            console.log("Ancestors:", ancestors);
+                            console.log("Categories to Update:", categoriesToUpdate);
+                            console.log("Count:", count);
+                        });
+
+                        // Depuración final
+                        console.log("Aggregated Result:", result);
+
+                        return result;
+                    }
+
+                    // Procesar datos para diferentes intervalos de tiempo
                     var processedData = {};
                     ["1", "5", "15", "60"].forEach(function(interval) {
                         var aggregatedData = aggregateTimeData(minute_data, parseInt(interval));
                         processedData[interval] = aggregatedData;
                     });
 
-                    // Visualization setup
+                    // Configuración de visualización
                     var width = 800,
                         height = 800,
                         num_nodes = 150,
                         node_radius = 5,
                         padding = 1,
-                        cluster_padding = 5; // Reduced cluster padding
+                        cluster_padding = 5;
 
-                    // Speed settings with fixed refresh rate
+                    // Configuración de velocidades
                     var speeds = {
                         slow: { interval: "1", delay: 1000 },
                         medium: { interval: "5", delay: 1500 },
                         fast: { interval: "15", delay: 2000 },
-                        hourly: { interval: "60", delay: 4000 } // New hourly mode with 4-second delay
+                        hourly: { interval: "60", delay: 4000 }
                     };
                     var current_speed = speeds.slow;
 
-                    // Define cluster positions in a circle around center
+                    // Definir posiciones de los clusters en un círculo
                     var centerX = width / 2;
                     var centerY = height / 2;
-                    var radius = 300; // Adjusted radius
+                    var radius = 300;
 
-                    // Position clusters in a circle
+                    // Posicionar clusters en un círculo
                     var angle = 0;
                     var angleStep = (2 * Math.PI) / (Object.keys(categories).length - 1);
                     Object.keys(categories).forEach(function(key) {
-                        if (key !== "others") {
+                        if (key !== "other") {
                             categories[key].x = centerX + radius * Math.cos(angle);
                             categories[key].y = centerY + radius * Math.sin(angle);
                             angle += angleStep;
@@ -338,56 +424,56 @@
                         }
                     });
 
-                    // Create SVG
+                    // Crear SVG
                     var svg = d3.select("#chart").append("svg")
                         .attr("width", width)
                         .attr("height", height);
 
-                    // Initialize nodes at center
+                    // Inicializar nodos en el centro
                     var nodes = d3.range(num_nodes).map(function(i) {
                         return {
                             id: i,
                             x: centerX + Math.random(),
                             y: centerY + Math.random(),
                             radius: node_radius,
-                            cluster: "others"
+                            cluster: "other"
                         };
                     });
 
-                    // Create force layout
+                    // Crear layout de fuerza
                     var force = d3.layout.force()
                         .nodes(nodes)
                         .size([width, height])
                         .gravity(0)
                         .charge(0)
-                        .friction(0.75) // Increased friction for smoother movement
+                        .friction(0.55)
                         .on("tick", tick)
                         .start();
 
-                    // Create circles for nodes
+                    // Crear círculos para los nodos
                     var circle = svg.selectAll("circle")
                         .data(nodes)
                         .enter().append("circle")
                         .attr("r", node_radius)
                         .style("fill", function(d) { return categories[d.cluster].color; });
 
-                    // Create group for each cluster label
+                    // Crear grupo para cada etiqueta de cluster
                     var labelGroups = svg.selectAll(".label-group")
                         .data(Object.values(categories))
                         .enter().append("g")
                         .attr("class", "label-group")
                         .attr("transform", function(d) {
-                            return "translate(" + d.x + "," + (d.y + 70) + ")"; // Moved labels below clusters
+                            return "translate(" + d.x + "," + (d.y + 70) + ")";
                         });
 
-                    // Add cluster name labels
+                    // Añadir etiquetas de nombre de cluster
                     labelGroups.append("text")
                         .attr("class", "cluster-label")
                         .attr("text-anchor", "middle")
                         .attr("dy", "0em")
                         .text(function(d) { return d.label; });
 
-                    // Add percentage labels
+                    // Añadir etiquetas de porcentaje
                     labelGroups.append("text")
                         .attr("class", "percentage-label")
                         .attr("text-anchor", "middle")
@@ -396,7 +482,7 @@
 
                     function tick(e) {
                         circle
-                            .each(gravity(0.3 * e.alpha)) // Adjusted gravity strength
+                            .each(gravity(0.3 * e.alpha))
                             .each(collide(0.5))
                             .attr("cx", function(d) { return d.x; })
                             .attr("cy", function(d) { return d.y; })
@@ -441,49 +527,64 @@
                     var timePoints = Object.keys(processedData[current_speed.interval]).sort();
                     var currentTimeIndex = 0;
                     var timer;
+                    var isPlaying = false;
+                    var playPauseButton = document.getElementById('play-pause-button');
+                    var progressBar = document.getElementById('progress-bar');
+                    //var progressTimeDisplay = document.getElementById('progress-time-display');
+
+                    // Configurar barra de progreso
+                    progressBar.setAttribute('min', 0);
+                    progressBar.setAttribute('max', timePoints.length - 1);
+                    progressBar.value = currentTimeIndex;
+
+                    // Actualizar barra de progreso cuando cambia la velocidad
+                    function updateProgressBar() {
+                        progressBar.setAttribute('min', 0);
+                        progressBar.setAttribute('max', timePoints.length - 1);
+                        progressBar.value = currentTimeIndex;
+                    }
 
                     function updateNodes() {
                         var minute = timePoints[currentTimeIndex];
                         var minuteData = processedData[current_speed.interval][minute];
 
-                        // Aggregate counts into main categories
-                        var aggregatedData = aggregateCategories(minuteData, categoryMap);
+                        // Agregar conteos en categorías principales considerando ancestros
+                        var aggregatedData = aggregateCategories(minuteData, categories, categoryMap, child_to_parents);
 
-                        // Calculate total events for this time period
+                        // Calcular eventos totales para este periodo
                         var totalEvents = 0;
                         Object.keys(aggregatedData).forEach(function(catKey) {
                             totalEvents += aggregatedData[catKey];
                         });
 
-                        // Handle case when totalEvents is zero
+                        // Manejar caso cuando totalEvents es cero
                         if (totalEvents === 0) {
-                            totalEvents = 1; // Avoid division by zero
+                            totalEvents = 1; // Evitar división por cero
                         }
 
-                        // Calculate percentages and node assignments
+                        // Calcular porcentajes y asignación de nodos
                         var nodeAssignments = {};
                         var percentages = {};
                         var remainingNodes = num_nodes;
-                        var remainingPercentage = 100;
 
                         Object.keys(categories).forEach(function(catKey) {
-                            if (catKey === "others") return;
-
                             var count = aggregatedData[catKey] || 0;
                             var percentage = (count / totalEvents) * 100;
                             var nodesCount = Math.round((percentage / 100) * num_nodes);
 
                             nodeAssignments[catKey] = nodesCount;
-                            percentages[categories[catKey].id] = percentage; // Use category.id as key
+                            percentages[catKey] = percentage;
                             remainingNodes -= nodesCount;
-                            remainingPercentage -= percentage;
                         });
 
-                        // Assign remaining nodes to "others"
-                        nodeAssignments["others"] = remainingNodes;
-                        percentages["others"] = remainingPercentage;
+                        // Ajustar por errores de redondeo
+                        if (remainingNodes > 0) {
+                            nodeAssignments["other"] += remainingNodes;
+                        } else if (remainingNodes < 0) {
+                            nodeAssignments["other"] = Math.max(0, nodeAssignments["other"] + remainingNodes);
+                        }
 
-                        // Update node clusters
+                        // Actualizar clusters de nodos
                         var nodeIndex = 0;
                         Object.keys(nodeAssignments).forEach(function(catKey) {
                             var count = nodeAssignments[catKey];
@@ -495,33 +596,41 @@
                             }
                         });
 
-                        // Update percentage labels
+                        // Actualizar etiquetas de porcentaje
                         svg.selectAll(".percentage-label")
                             .text(function(d) {
-                                return Math.round(percentages[d.id] || 0) + "%";
+                                return Math.round(percentages[d.key] || 0) + "%";
                             });
 
-                        // Update time display
+                        // Actualizar visualización del tiempo
                         d3.select("#time-display").text(minute);
+                        //progressTimeDisplay.textContent = minute;
+                        progressBar.value = currentTimeIndex;
 
-                        // Resume the force layout
+                        // Reanudar el layout de fuerza
                         force.resume();
                     }
 
-                    // Speed control handlers
+                    // Controladores de velocidad
                     d3.selectAll(".speed-btn").on("click", function() {
                         var speed = d3.select(this).attr("data-speed");
                         d3.selectAll(".speed-btn").classed("active", false);
                         d3.select(this).classed("active", true);
                         current_speed = speeds[speed];
 
-                        // Update time points based on new interval
+                        // Actualizar puntos de tiempo según nuevo intervalo
                         timePoints = Object.keys(processedData[current_speed.interval]).sort();
                         currentTimeIndex = 0;
+                        updateProgressBar();
 
-                        // Restart timer with new speed
-                        clearInterval(timer);
-                        timer = setInterval(step, current_speed.delay);
+                        // Si está reproduciendo, reiniciar temporizador con nueva velocidad
+                        if (isPlaying) {
+                            clearInterval(timer);
+                            timer = setInterval(step, current_speed.delay);
+                        }
+
+                        // Actualizar nodos para nuevo tiempo
+                        updateNodes();
                     });
 
                     function step() {
@@ -529,8 +638,27 @@
                         currentTimeIndex = (currentTimeIndex + 1) % timePoints.length;
                     }
 
-                    // Start the visualization
-                    timer = setInterval(step, current_speed.delay);
+                    // Evento para el botón de play/pause
+                    playPauseButton.addEventListener('click', function() {
+                        if (isPlaying) {
+                            clearInterval(timer);
+                            playPauseButton.textContent = 'Play';
+                            isPlaying = false;
+                        } else {
+                            timer = setInterval(step, current_speed.delay);
+                            playPauseButton.textContent = 'Pause';
+                            isPlaying = true;
+                        }
+                    });
+
+                    // Evento para la barra de progreso
+                    progressBar.addEventListener('input', function() {
+                        currentTimeIndex = parseInt(this.value);
+                        updateNodes();
+                    });
+
+                    // Iniciar visualización con el primer conjunto de datos
+                    updateNodes();
 
                 });
             });

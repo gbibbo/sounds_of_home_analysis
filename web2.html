@@ -1,0 +1,899 @@
+<!-- web.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>The Sounds of Home Dataset</title>
+    <link href="./web_files/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        header {
+            background-color: #ffffff;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        header img {
+            width: 55.6%;
+            height: auto;
+            margin-right: 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #ff5e5b;
+            text-align: center;
+            margin: 0;
+        }
+
+        section {
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #f9a03f;
+        }
+
+        .dataset-links {
+            background-color: #fff4e6;
+            padding: 15px;
+            border-left: 5px solid #ff5e5b;
+            margin-bottom: 20px;
+        }
+
+        footer {
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .institution-logo {
+            max-width: 17%;
+            height: auto;
+            margin: 20px;
+        }
+
+        .institution-logo:hover {
+            opacity: 0.8;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            font-size: 0.85em;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .half-width {
+            width: 50%;
+        }
+
+        /* Visualization Styles */
+        #main-wrapper {
+            width: 800px;
+            margin: 0 auto;
+        }
+
+        #controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #time-display {
+            font-size: 24px;
+            font-weight: bold;
+            min-width: 80px;
+            margin-left: auto;
+        }
+
+        #progress-bar-wrapper {
+            width: 500px;
+            display: flex;
+            align-items: center;
+        }
+
+        #progress-bar {
+            width: 100%;
+        }
+
+        #speed-controls {
+            display: flex;
+            gap: 10px;
+            margin-left: 0;
+        }
+
+        .speed-btn {
+            padding: 8px 20px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .speed-btn.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+
+        #play-pause-button {
+            padding: 8px 20px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            min-width: 80px;
+        }
+
+        #chart {
+            width: 800px;
+            height: 800px;
+            border: 1px solid #ccc;
+        }
+
+        .cluster-label {
+            font-size: 14px;
+            fill: #333;
+            font-weight: bold;
+        }
+
+        .percentage-label {
+            font-size: 14px;
+            fill: #666;
+            font-weight: bold;
+        }
+    </style>
+    <!-- Include D3.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+</head>
+<body>
+
+    <header>
+        <a href="https://ai4s.surrey.ac.uk/" target="_blank">
+            <img src="./web_files/logo_ai4s.png" alt="AI4S Logo">
+        </a>
+        <h1>The Sounds of Home Dataset</h1>
+    </header>
+
+    <main class="container my-4">
+        <section>
+            <h2>Dataset Description</h2>
+            <p>This dataset includes 1,344 one-hour audio recordings from the homes of 8 participants in Belgium, captured during 2023. Each home was equipped with two AudioMoth devices, installed in the Living Room and Kitchen, recording simultaneously. The dataset is organized into 14 folders, each set of two folders representing audio recordings from the same house. The recordings document daily soundscapes and activities of living environments, offering a valuable resource for sound event detection research. For further details on the project's background, please visit our <a href="https://www.surrey.ac.uk/digital-world-research-centre/funded-projects/sound-wellbeing-later-life" target="_blank">project page</a>.</p>
+            <div class="row">
+                <div class="col-md-6 half-width">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Aspect</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Recording Device</td><td>AudioMoth with IPX7 Waterproof Case</td></tr>
+                            <tr><td>Number of Samples</td><td>1344 audio files</td></tr>
+                            <tr><td>Length of Each File</td><td>3595 seconds (approximately 1 hour)</td></tr>
+                            <tr><td>Number of Homes</td><td>7</td></tr>
+                            <tr><td>Recording Duration</td><td>7 days per home</td></tr>
+                            <tr><td>Recording Window</td><td>Typically 8:00 AM to 9:00 PM</td></tr>
+                            <tr><td>Housing Types</td><td>Detached, semi-detached, mixed-use housing, high-rise flats</td></tr>
+                            <tr><td>Location Types</td><td>Rural and suburban areas</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-6 half-width">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Aspect</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Geography</td><td>Belgium (around Geel/Turnhout)</td></tr>
+                            <tr><td>Demographics</td><td>8 participants, all aged 55-80 years</td></tr>
+                            <tr><td>Rooms Recorded</td><td>Primarily living rooms and kitchens</td></tr>
+                            <tr><td>Floor Types</td><td>Varied: wood, linoleum, concrete</td></tr>
+                            <tr><td>Wall Types</td><td>Varied: concrete, painted</td></tr>
+                            <tr><td>Home Features Diversity</td><td>Large windows, soft furnishings, open plan designs, pets (dog and cat in one home), robot vacuum cleaner (in one home)</td></tr>
+                            <tr><td>Special Notes</td><td>Two participants lived together in one house; Some homes had combined kitchen and living areas; Various noise issues noted (e.g., ventilation, ground-borne vibration)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <h2>Recording Information</h2>
+            <p>The following tables provide detailed information about the recorders installed in the kitchen and living areas, as well as their recording times.</p>
+            
+            <h3>Kitchen Recorders</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Recorder ID</th>
+                        <th>Recording Times</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Recorder 02</td><td>07:00, 08:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                    <tr><td>Recorder 04</td><td>06:30, 07:30, 08:30, 09:30, 10:30, 11:30, 12:30, 13:30, 14:30, 15:30, 16:30, 17:30, 18:30</td></tr>
+                    <tr><td>Recorder 05</td><td>07:00, 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                    <tr><td>Recorder 07</td><td>07:00, 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                    <tr><td>Recorder 10</td><td>07:00, 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                    <tr><td>Recorder 11</td><td>07:00, 08:00, 09:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00, 23:00</td></tr>
+                    <tr><td>Recorder 13</td><td>07:00, 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Living Room Recorders</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Recorder ID</th>
+                        <th>Recording Times</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Recorder 01</td><td>07:00, 08:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                    <tr><td>Recorder 03</td><td>06:30, 07:30, 08:30, 09:30, 10:30, 11:30, 12:30, 13:30, 14:30, 15:30, 16:30, 17:30, 18:30</td></tr>
+                    <tr><td>Recorder 06</td><td>07:00, 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                    <tr><td>Recorder 08</td><td>07:00, 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                    <tr><td>Recorder 09</td><td>07:00, 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                    <tr><td>Recorder 12</td><td>07:00, 08:00, 09:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00, 23:00</td></tr>
+                    <tr><td>Recorder 14</td><td>07:00, 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00</td></tr>
+                </tbody>
+            </table>
+
+            <!-- Visualization inserted here -->
+            <div id="main-wrapper">
+                <div id="controls">
+                    <!-- Speed Controls -->
+                    <div class="control-row">
+                        <div id="speed-controls">
+                            <button class="speed-btn active" data-speed="slow">SLOW</button>
+                            <button class="speed-btn" data-speed="medium">MEDIUM</button>
+                            <button class="speed-btn" data-speed="fast">FAST</button>
+                            <button class="speed-btn" data-speed="hourly">1HR</button>
+                        </div>
+                    </div>
+                    <!-- Play, Progress Bar, and Time Display -->
+                    <div class="control-row">
+                        <button id="play-pause-button">Play</button>
+                        <div id="progress-bar-wrapper">
+                            <input type="range" id="progress-bar" min="0" max="100" value="0" step="1">
+                        </div>
+                        <div id="time-display"></div>
+                    </div>
+                </div>
+                <div id="chart"></div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Citation</h2>
+            <p>If you use this dataset, please consider citing us:</p>
+            <a href="https://arxiv.org/pdf/2409.11262" target="_blank">Link to Arxiv Publication</a>
+            <pre>@article{bibbo2024sounds,
+  title={The Sounds of Home: A Speech-Removed Residential Audio Dataset for Sound Event Detection},
+  author={Bibbó, G. and Deacon, T. and Singh, A. and Plumbley, M. D.},
+  journal={CHiME 2024 workshop, Kos Island, Greece},
+  year={2024}
+}
+            </pre>
+        </section>
+
+        <section>
+            <h2>Download</h2>
+            <p>The complete dataset is downloadable from the CVSSP server:</p>
+            <div class="dataset-links">
+                <p><a href="https://www.cvssp.org/data/ai4s/sounds_of_home/VITALISE_data_light.zip">Download Complete Dataset (CVSSP Server) - 197GB</a></p>
+            </div>
+            <p>For segmented downloads, the dataset is also available in four parts on Zenodo:</p>
+            <div class="dataset-links">
+                <p><a href="https://doi.org/10.5281/zenodo.12737915">Zenodo Part 1</a></p>
+                <p>The remaining parts can be found through links provided in Part 1.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Collaboration Institutions</h2>
+            <p>University of Surrey and Licalab are the primary institutions involved in this project. Below are their logos:</p>
+            <div class="d-flex justify-content-center">
+                <a href="https://www.surrey.ac.uk/" target="_blank">
+                    <img src="./web_files/logo_uni.png" alt="New University Logo" class="institution-logo mx-2">
+                </a>
+                <a href="https://www.surrey.ac.uk/centre-vision-speech-signal-processing" target="_blank">
+                    <img src="./web_files/logo_surrey.png" alt="University of Surrey Logo" class="institution-logo mx-2">
+                </a>
+                <a href="https://vitalise-project.eu/older-adults-homes/" target="_blank">
+                    <img src="./web_files/logo_licalab.png" alt="Licalab Logo" class="institution-logo mx-2">
+                </a>
+            </div>
+        </section>
+
+        <section>
+            <h2>Funding and Acknowledgments</h2>
+            <p>This project has been supported by the Engineering and Physical Sciences Research Council (EPSRC) under the grant EP/T019751/1 "AI for Sound (AI4S)" and by the VITALISE Transnational Access programme.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>For more information, please refer to the full research paper or contact the Centre for Vision, Speech and Signal Processing, University of Surrey, UK.</p>
+    </footer>
+
+    <!-- Include Bootstrap JS -->
+    <script src="./web_files/bootstrap.bundle.min.js.download"></script>
+
+    <script>
+        // Funciones de utilidad
+        function build_parent_child_mappings(ontology) {
+            var parent_to_children = {};
+            var child_to_parents = {};
+
+            ontology.forEach(function(class_item) {
+                var parent_id = class_item.id;
+                if (class_item.child_ids) {
+                    parent_to_children[parent_id] = class_item.child_ids;
+                    class_item.child_ids.forEach(function(child_id) {
+                        if (!child_to_parents[child_id]) {
+                            child_to_parents[child_id] = [];
+                        }
+                        child_to_parents[child_id].push(parent_id);
+                    });
+                }
+            });
+            return { parent_to_children: parent_to_children, child_to_parents: child_to_parents };
+        }
+
+        function get_ancestors(class_id, child_to_parents, memo) {
+            if (!memo) memo = {};
+            if (memo[class_id]) return memo[class_id];
+
+            var ancestors = [];
+            var parents = child_to_parents[class_id] || [];
+            parents.forEach(function(parent_id) {
+                if (ancestors.indexOf(parent_id) === -1) {
+                    ancestors.push(parent_id);
+                    var parent_ancestors = get_ancestors(parent_id, child_to_parents, memo);
+                    parent_ancestors.forEach(function(ancestor) {
+                        if (ancestors.indexOf(ancestor) === -1) {
+                            ancestors.push(ancestor);
+                        }
+                    });
+                }
+            });
+            memo[class_id] = ancestors;
+            return ancestors;
+        }
+
+        function get_all_subclasses(class_id, parent_to_children) {
+            var subclasses = [class_id];
+            var children = parent_to_children[class_id] || [];
+            children.forEach(function(child_id) {
+                if (subclasses.indexOf(child_id) === -1) {
+                    subclasses.push(child_id);
+                    var child_subclasses = get_all_subclasses(child_id, parent_to_children);
+                    child_subclasses.forEach(function(subclass) {
+                        if (subclasses.indexOf(subclass) === -1) {
+                            subclasses.push(subclass);
+                        }
+                    });
+                }
+            });
+            return subclasses;
+        }
+
+        // Función para agregar datos de tiempo
+        function aggregateTimeData(data, interval) {
+            var aggregated = {};
+
+            Object.keys(data).sort().forEach(function(minute) {
+                var timeParts = minute.split(':');
+                var hour = parseInt(timeParts[0], 10);
+                var min = parseInt(timeParts[1], 10);
+
+                // Redondear al intervalo más cercano
+                var aggregatedHour = hour;
+                var aggregatedMin = min;
+
+                if (interval >= 60) {
+                    // Agregar por hora
+                    aggregatedHour = Math.floor(hour / (interval / 60)) * (interval / 60);
+                    aggregatedMin = 0;
+                } else {
+                    // Agregar por minutos
+                    aggregatedMin = Math.floor(min / interval) * interval;
+                }
+
+                var timeKey = (aggregatedHour < 10 ? '0' + aggregatedHour : aggregatedHour) + ':' + (aggregatedMin < 10 ? '0' + aggregatedMin : aggregatedMin);
+
+                if (!aggregated[timeKey]) {
+                    aggregated[timeKey] = {};
+                }
+
+                // Sumar conteos para este periodo
+                Object.keys(data[minute]).forEach(function(classId) {
+                    if (!aggregated[timeKey][classId]) {
+                        aggregated[timeKey][classId] = 0;
+                    }
+                    aggregated[timeKey][classId] += data[minute][classId];
+                });
+            });
+
+            return aggregated;
+        }
+
+        // Cargar todos los datos necesarios antes de iniciar la visualización
+        d3.json("metadata/ontology.json", function(error1, ontology) {
+            if (error1) {
+                console.error("Error cargando ontology.json:", error1);
+                return;
+            }
+            d3.csv("metadata/class_labels_indices.csv", function(error2, class_labels) {
+                if (error2) {
+                    console.error("Error cargando class_labels_indices.csv:", error2);
+                    return;
+                }
+                d3.json("analysis_results/minute_analysis_results/minute_counts.json", function(error3, minute_data) {
+                    if (error3) {
+                        console.error("Error cargando minute_counts.json:", error3);
+                        return;
+                    }
+
+                    // Construir mapeos
+                    var mappings = build_parent_child_mappings(ontology);
+                    var parent_to_children = mappings.parent_to_children;
+                    var child_to_parents = mappings.child_to_parents;
+
+                    // Mapear etiquetas de clase a IDs y viceversa
+                    var class_label_to_id = {};
+                    var class_id_to_label = {};
+                    class_labels.forEach(function(d) {
+                        class_label_to_id[d.display_name.toLowerCase()] = d.mid;
+                        class_id_to_label[d.mid] = d.display_name;
+                    });
+
+                    // Crear mapeo de nombres de clase a IDs usando la ontología
+                    var name_to_class_id = {};
+                    ontology.forEach(function(item) {
+                        name_to_class_id[item.name.toLowerCase()] = item.id;
+                    });
+
+                    // Definir categorías usando solo 'name' y 'color'
+                    var categoryDefinitions = [
+                        { name: "Human voice", color: "#0033ff" },
+                        { name: "Domestic sounds, home sounds", color: "#ffae00" },
+                        { name: "Animals", color: "#4eff26" },
+                        { name: "Mechanisms", color: "#d0021b" },
+                        { name: "Tools", color: "#bd10e0" },
+                        { name: "Human locomotion", color: "#00ccff" },
+                        { name: "Alarm", color: "#ff8b26" },
+                        { name: "Engine", color: "#7f7f7f" },
+                        { name: "Source-ambiguous sounds", color: "#26ffdb" },
+                        { name: "Music", color: "#ab4a00" },
+                        { name: "Silence", color: "#d6d4d2" },
+                        { name: "Channel, environment and background", color: "#ab4a00" },
+                        { name: "Other", color: "#808080" }
+                    ];
+
+                    // Crear categorías
+                    var categories = {};
+                    categoryDefinitions.forEach(function(catDef, index) {
+                        var className = catDef.name.toLowerCase();
+                        var classId = name_to_class_id[className];
+                        var key = className.replace(/[\s,]/g, '_'); // Generar key automáticamente
+                        if (classId) {
+                            categories[key] = {
+                                key: key,
+                                id: classId,
+                                label: catDef.name,
+                                color: catDef.color,
+                                subclasses: []
+                            };
+                        } else if (catDef.name === "Other") {
+                            categories[key] = {
+                                key: key,
+                                id: "others",
+                                label: catDef.name,
+                                color: catDef.color,
+                                subclasses: []
+                            };
+                        } else {
+                            console.warn("Nombre de clase no encontrado en la ontología:", catDef.name);
+                        }
+                    });
+
+                    // Obtener todas las subclases para cada categoría
+                    Object.keys(categories).forEach(function(catKey) {
+                        var category = categories[catKey];
+                        if (category.id && category.id !== "others") {
+                            var subclasses = get_all_subclasses(category.id, parent_to_children);
+                            category.subclasses = subclasses;
+                        }
+                    });
+
+                    // Construir mapeo de categorías para cada ID de clase
+                    var categoryMap = {};
+                    Object.keys(categories).forEach(function(catKey) {
+                        var category = categories[catKey];
+                        if (category.subclasses && category.subclasses.length > 0) {
+                            category.subclasses.forEach(function(classId) {
+                                categoryMap[classId] = catKey;
+                            });
+                        } else if (category.id !== "others") {
+                            categoryMap[category.id] = catKey;
+                        }
+                    });
+
+                    console.log("Category Map:", categoryMap);
+
+                    // Función para agregar categorías considerando ancestros y categorías definidas
+                    function aggregateCategories(minuteData, categories, categoryMap, child_to_parents) {
+                        var result = {};
+                        // Inicializar conteos en cero
+                        Object.keys(categories).forEach(function(catKey) {
+                            result[catKey] = 0;
+                        });
+
+                        // Para memoización de ancestros
+                        var memo = {};
+
+                        // Para cada classId en minuteData
+                        Object.keys(minuteData).forEach(function(classId) {
+                            var count = minuteData[classId];
+
+                            // Lista de categorías a actualizar
+                            var categoriesToUpdate = [];
+
+                            // Si la clase misma está en las categorías definidas
+                            var catKey = categoryMap[classId];
+                            if (catKey) {
+                                categoriesToUpdate.push(catKey);
+                            }
+
+                            // Obtener ancestros de la clase (sin incluir la clase misma)
+                            var ancestors = get_ancestors(classId, child_to_parents, memo);
+
+                            // Para cada ancestro, si está en las categorías, agregarlo
+                            ancestors.forEach(function(ancestorId) {
+                                var ancestorCatKey = categoryMap[ancestorId];
+                                if (ancestorCatKey) {
+                                    categoriesToUpdate.push(ancestorCatKey);
+                                }
+                            });
+
+                            // Eliminar duplicados
+                            categoriesToUpdate = categoriesToUpdate.filter(function(item, pos) {
+                                return categoriesToUpdate.indexOf(item) === pos;
+                            });
+
+                            // Sumar el conteo a las categorías correspondientes
+                            categoriesToUpdate.forEach(function(catKey) {
+                                result[catKey] += count;
+                            });
+
+                            // Depuración
+                            console.log("Class ID:", classId);
+                            console.log("Ancestors:", ancestors);
+                            console.log("Categories to Update:", categoriesToUpdate);
+                            console.log("Count:", count);
+                        });
+
+                        // Depuración final
+                        console.log("Aggregated Result:", result);
+
+                        return result;
+                    }
+
+                    // Procesar datos para diferentes intervalos de tiempo
+                    var processedData = {};
+                    ["1", "5", "15", "60"].forEach(function(interval) {
+                        var aggregatedData = aggregateTimeData(minute_data, parseInt(interval));
+                        processedData[interval] = aggregatedData;
+                    });
+
+                    // Configuración de visualización
+                    var width = 800,
+                        height = 800,
+                        num_nodes = 150,
+                        node_radius = 5,
+                        padding = 1,
+                        cluster_padding = 5;
+
+                    // Configuración de velocidades
+                    var speeds = {
+                        slow: { interval: "1", delay: 1000 },
+                        medium: { interval: "5", delay: 1500 },
+                        fast: { interval: "15", delay: 2000 },
+                        hourly: { interval: "60", delay: 3000 }
+                    };
+                    var current_speed = speeds.slow;
+
+                    // Definir posiciones de los clusters en un círculo
+                    var centerX = width / 2;
+                    var centerY = height / 2;
+                    var radius = 300;
+
+                    // Posicionar clusters en un círculo
+                    var angle = 0;
+                    var angleStep = (2 * Math.PI) / (Object.keys(categories).length - 1);
+                    Object.keys(categories).forEach(function(key) {
+                        if (key !== "other") {
+                            categories[key].x = centerX + radius * Math.cos(angle);
+                            categories[key].y = centerY + radius * Math.sin(angle);
+                            angle += angleStep;
+                        } else {
+                            categories[key].x = centerX;
+                            categories[key].y = centerY;
+                        }
+                    });
+
+                    // Crear SVG
+                    var svg = d3.select("#chart").append("svg")
+                        .attr("width", width)
+                        .attr("height", height);
+
+                    // Inicializar nodos en el centro
+                    var nodes = d3.range(num_nodes).map(function(i) {
+                        return {
+                            id: i,
+                            x: centerX + Math.random(),
+                            y: centerY + Math.random(),
+                            radius: node_radius,
+                            cluster: "other"
+                        };
+                    });
+
+                    // Crear layout de fuerza
+                    var force = d3.layout.force()
+                        .nodes(nodes)
+                        .size([width, height])
+                        .gravity(0)
+                        .charge(0)
+                        .friction(0.55)
+                        .on("tick", tick)
+                        .start();
+
+                    // Crear círculos para los nodos
+                    var circle = svg.selectAll("circle")
+                        .data(nodes)
+                        .enter().append("circle")
+                        .attr("r", node_radius)
+                        .style("fill", function(d) { return categories[d.cluster].color; });
+
+                    // Crear grupo para cada etiqueta de cluster
+                    var labelGroups = svg.selectAll(".label-group")
+                        .data(Object.values(categories))
+                        .enter().append("g")
+                        .attr("class", "label-group")
+                        .attr("transform", function(d) {
+                            return "translate(" + d.x + "," + (d.y + 70) + ")";
+                        });
+
+                    // Añadir etiquetas de nombre de cluster
+                    labelGroups.append("text")
+                        .attr("class", "cluster-label")
+                        .attr("text-anchor", "middle")
+                        .attr("dy", "0em")
+                        .text(function(d) { return d.label; });
+
+                    // Añadir etiquetas de porcentaje
+                    labelGroups.append("text")
+                        .attr("class", "percentage-label")
+                        .attr("text-anchor", "middle")
+                        .attr("dy", "1.2em")
+                        .text("0%");
+
+                    function tick(e) {
+                        circle
+                            .each(gravity(0.3 * e.alpha))
+                            .each(collide(0.5))
+                            .attr("cx", function(d) { return d.x; })
+                            .attr("cy", function(d) { return d.y; })
+                            .style("fill", function(d) { return categories[d.cluster].color; });
+                    }
+
+                    function gravity(alpha) {
+                        return function(d) {
+                            var cluster = categories[d.cluster];
+                            d.y += (cluster.y - d.y) * alpha;
+                            d.x += (cluster.x - d.x) * alpha;
+                        };
+                    }
+
+                    function collide(alpha) {
+                        var quadtree = d3.geom.quadtree(nodes);
+                        return function(d) {
+                            var r = d.radius + node_radius + Math.max(padding, cluster_padding),
+                                nx1 = d.x - r,
+                                nx2 = d.x + r,
+                                ny1 = d.y - r,
+                                ny2 = d.y + r;
+                            quadtree.visit(function(quad, x1, y1, x2, y2) {
+                                if (quad.point && (quad.point !== d)) {
+                                    var x = d.x - quad.point.x,
+                                        y = d.y - quad.point.y,
+                                        l = Math.sqrt(x * x + y * y),
+                                        r = d.radius + quad.point.radius + (d.cluster === quad.point.cluster ? padding : cluster_padding);
+                                    if (l < r) {
+                                        l = (l - r) / l * alpha;
+                                        d.x -= x *= l;
+                                        d.y -= y *= l;
+                                        quad.point.x += x;
+                                        quad.point.y += y;
+                                    }
+                                }
+                                return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+                            });
+                        };
+                    }
+
+                    var timePoints = Object.keys(processedData[current_speed.interval]).sort();
+                    var currentTimeIndex = 0;
+                    var timer;
+                    var isPlaying = false;
+                    var playPauseButton = document.getElementById('play-pause-button');
+                    var progressBar = document.getElementById('progress-bar');
+                    //var progressTimeDisplay = document.getElementById('progress-time-display');
+
+                    // Configurar barra de progreso
+                    progressBar.setAttribute('min', 0);
+                    progressBar.setAttribute('max', timePoints.length - 1);
+                    progressBar.value = currentTimeIndex;
+
+                    // Actualizar barra de progreso cuando cambia la velocidad
+                    function updateProgressBar() {
+                        progressBar.setAttribute('min', 0);
+                        progressBar.setAttribute('max', timePoints.length - 1);
+                        progressBar.value = currentTimeIndex;
+                    }
+
+                    function updateNodes() {
+                        var minute = timePoints[currentTimeIndex];
+                        var minuteData = processedData[current_speed.interval][minute];
+
+                        // Agregar conteos en categorías principales considerando ancestros
+                        var aggregatedData = aggregateCategories(minuteData, categories, categoryMap, child_to_parents);
+
+                        // Calcular eventos totales para este periodo
+                        var totalEvents = 0;
+                        Object.keys(aggregatedData).forEach(function(catKey) {
+                            totalEvents += aggregatedData[catKey];
+                        });
+
+                        // Manejar caso cuando totalEvents es cero
+                        if (totalEvents === 0) {
+                            totalEvents = 1; // Evitar división por cero
+                        }
+
+                        // Calcular porcentajes y asignación de nodos
+                        var nodeAssignments = {};
+                        var percentages = {};
+                        var remainingNodes = num_nodes;
+
+                        Object.keys(categories).forEach(function(catKey) {
+                            var count = aggregatedData[catKey] || 0;
+                            var percentage = (count / totalEvents) * 100;
+                            var nodesCount = Math.round((percentage / 100) * num_nodes);
+
+                            nodeAssignments[catKey] = nodesCount;
+                            percentages[catKey] = percentage;
+                            remainingNodes -= nodesCount;
+                        });
+
+                        // Ajustar por errores de redondeo
+                        if (remainingNodes > 0) {
+                            nodeAssignments["other"] += remainingNodes;
+                        } else if (remainingNodes < 0) {
+                            nodeAssignments["other"] = Math.max(0, nodeAssignments["other"] + remainingNodes);
+                        }
+
+                        // Actualizar clusters de nodos
+                        var nodeIndex = 0;
+                        Object.keys(nodeAssignments).forEach(function(catKey) {
+                            var count = nodeAssignments[catKey];
+                            for (var i = 0; i < count; i++) {
+                                if (nodeIndex < nodes.length) {
+                                    nodes[nodeIndex].cluster = catKey;
+                                    nodeIndex++;
+                                }
+                            }
+                        });
+
+                        // Actualizar etiquetas de porcentaje
+                        svg.selectAll(".percentage-label")
+                            .text(function(d) {
+                                return Math.round(percentages[d.key] || 0) + "%";
+                            });
+
+                        // Actualizar visualización del tiempo
+                        d3.select("#time-display").text(minute);
+                        //progressTimeDisplay.textContent = minute;
+                        progressBar.value = currentTimeIndex;
+
+                        // Reanudar el layout de fuerza
+                        force.resume();
+                    }
+
+                    // Controladores de velocidad
+                    d3.selectAll(".speed-btn").on("click", function() {
+                        var speed = d3.select(this).attr("data-speed");
+                        d3.selectAll(".speed-btn").classed("active", false);
+                        d3.select(this).classed("active", true);
+                        current_speed = speeds[speed];
+
+                        // Actualizar puntos de tiempo según nuevo intervalo
+                        timePoints = Object.keys(processedData[current_speed.interval]).sort();
+                        currentTimeIndex = 0;
+                        updateProgressBar();
+
+                        // Si está reproduciendo, reiniciar temporizador con nueva velocidad
+                        if (isPlaying) {
+                            clearInterval(timer);
+                            timer = setInterval(step, current_speed.delay);
+                        }
+
+                        // Actualizar nodos para nuevo tiempo
+                        updateNodes();
+                    });
+
+                    function step() {
+                        updateNodes();
+                        currentTimeIndex = (currentTimeIndex + 1) % timePoints.length;
+                    }
+
+                    // Evento para el botón de play/pause
+                    playPauseButton.addEventListener('click', function() {
+                        if (isPlaying) {
+                            clearInterval(timer);
+                            playPauseButton.textContent = 'Play';
+                            isPlaying = false;
+                        } else {
+                            timer = setInterval(step, current_speed.delay);
+                            playPauseButton.textContent = 'Pause';
+                            isPlaying = true;
+                        }
+                    });
+
+                    // Evento para la barra de progreso
+                    progressBar.addEventListener('input', function() {
+                        currentTimeIndex = parseInt(this.value);
+                        updateNodes();
+                    });
+
+                    // Iniciar visualización con el primer conjunto de datos
+                    updateNodes();
+
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
