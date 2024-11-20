@@ -48,7 +48,7 @@ python scripts/main.py --gui
 
 1. **Select Parameters**:
  - Confidence Threshold: Filter events by prediction confidence
- - Recorders: Select the recorders to be used for audio analysis. Note how the recorders were [originally installed](https://www.cvssp.org/data/ai4s/sounds_of_home/)
+ - Recorders: Select the recorders to be used for audio analysis. Note how the recorders were [originally installed](https://www.cvssp.org/data/ai4s/sounds_of_home/#:~:text=Recording%20Information)
  - Sound Classes: Select event types to analyze
  - Days: Specify analysis timeframe
 
