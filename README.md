@@ -27,7 +27,7 @@ pip install -e .
 
 3. **Download Dataset**:
 
-  - Visit the Sounds of Home Dataset page
+  - Visit the [Sounds of Home Dataset](https://www.cvssp.org/data/ai4s/sounds_of_home/) page
   - Download the prediction JSON files
   - Create a 'data' directory in the repository root:
 ```bash
