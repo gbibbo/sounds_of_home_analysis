@@ -65,7 +65,7 @@ The `batch_analysis.py` script performs analysis across multiple confidence thre
 
 1. **Threshold Options**:
 - Fixed thresholds: [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
-- Variable threshold: Adapts based on AudioSet label quality
+- Variable threshold: Adapts based on [AudioSet label quality](https://research.google.com/audioset/download.html#quality:~:text=Quality%20Assessment%20and%20rerating)
   - Uses linear interpolation:
     ```python
     threshold = 0.2 + (0.5 - 0.2) * (label_quality / 100)
@@ -91,6 +91,14 @@ analysis_results/
     └── analysis_results_threshold_variable.json
 ```
 
+4. **Customizing Analysis**:
+ - Configure data selection in `src/config.py`:
+   ```python
+   SELECTED_RECORDERS = []  # Empty list means all recorders
+   SELECTED_DAYS = []      # Empty list means all available days
+   SELECTED_HOURS = []     # Empty list means all hours
+  
+  ```
 ### Granger Causality Analysis
 The `granger.py` script analyzes temporal relationships between sound events:
 
@@ -155,6 +163,8 @@ The `events_statistics.py` script generates comprehensive statistical informatio
 - Generates category and subcategory statistics
 - Creates visualization plots
 
+![Events Statistics](analysis_results/events_statistics_results/main_categories.png)
+
 2. **Usage**:
 ```bash
 python scripts/events_statistics.py
@@ -176,6 +186,7 @@ analysis_results/
   - `USE_LABEL_QUALITY_THRESHOLDS`: Enable/disable quality-based thresholds
   - `GENERATE_GRAPHS`: Control visualization output
   - `CUSTOM_CATEGORIES`: Define category structure
+
 ## Visualization Preview
 
 Here's a dynamic preview of the application interface:
