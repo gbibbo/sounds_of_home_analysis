@@ -97,8 +97,8 @@ analysis_results/
    SELECTED_RECORDERS = []  # Empty list means all recorders
    SELECTED_DAYS = []      # Empty list means all available days
    SELECTED_HOURS = []     # Empty list means all hours
-  
   ```
+
 ### Granger Causality Analysis
 The `granger.py` script analyzes temporal relationships between sound events:
 
