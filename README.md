@@ -215,56 +215,6 @@ To view and interact with the application locally:
      ```
    - Replace `path_to_your_html_file.html` with the actual path to the HTML file within your project directory that serves the application's interface.
 
-## Interface Preview
-
-Here's a preview of the application interface:
-
-![Application Interface](assets/images/interface.png)
-
-The interface allows you to select different parameters and visualize the results like this:
-
-![Example Plot](assets/images/plot.png)
-
-## Features
-
-- **User Interface (GUI) with Tkinter**: Allows selection of parameters such as recorders, sound classes, days, and hours to customize the analysis.
-- **Batch Analysis Script**: Perform analyses over multiple confidence thresholds without opening the GUI.
-- **Events Statistics Generator**: Analyze and generate comprehensive statistics about sound events.
-- **Quality-Based Threshold System**: Adjust confidence thresholds based on AudioSet label quality estimates.
-- **Multiprocessing Support**: Utilizes multiple CPU cores to process large datasets quickly.
-- **Customizable Visualization**: Generates graphs showing the distribution of sound events by hour and category.
-- **AudioSet Ontology Compatibility**: Respects the hierarchy and categories defined in the ontology.
-- **Comprehensive Testing Suite**: Includes tests for data processing and analysis functions.
-
-## Requirements
-
-- Python 3.6 or higher
-- Python libraries:
-  - `tkinter`
-  - `matplotlib`
-  - `numpy`
-  - `pandas`
-  - `tqdm`
-  - `multiprocessing`
-- Access to the "Sounds of Home" experiment dataset
-
-## Installation
-
-1. **Clone the repository**:
-
-```bash
-git clone https://github.com/gbibbo/sounds_of_home_analysis.git
-cd sounds_of_home_analysis
-```
-
-2. **Install dependencies**:
-
-```bash
-pip install -r requirements.txt
-```
-
-**Note**: Make sure your Python environment is properly configured. Using a virtual environment is recommended.
-
 ## Dataset
 
 This project is designed to run with the dataset that can be downloaded from:
