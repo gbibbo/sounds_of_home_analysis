@@ -188,13 +188,13 @@ analysis_results/
   - `GENERATE_GRAPHS`: Control visualization output
   - `CUSTOM_CATEGORIES`: Define category structure
 
-## Visualization Preview
+## Dynamic visualization
 
-Here's a dynamic preview of the application interface:
+Here's a dynamic preview of the application interface that you can also find in the [dataset website](https://www.cvssp.org/data/ai4s/sounds_of_home/#:~:text=00%2C%2022%3A00-,SLOW,-MEDIUM)
 
 ![SOH Visualization](assets/images/SOH_Visualization%20(06%20to%2023hs).gif)
 
-## Accessing the Application on Your Local Machine
+### Accessing the Application on Your Local Machine
 
 To view and interact with the application locally:
 
