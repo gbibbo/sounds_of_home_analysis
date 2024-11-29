@@ -38,7 +38,7 @@ import umap.umap_ as umap
 # Add the parent directory to sys.path to import utils and load_data
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.config import PREDICTIONS_ROOT_DIR, ONTOLOGY_PATH, CLASS_LABELS_CSV_PATH
+from src.config import CONFIDENCE_THRESHOLD, ONTOLOGY_PATH, CLASS_LABELS_CSV_PATH
 from src.data_processing.utils import (
     get_class_id,
     get_all_subclasses,
@@ -51,7 +51,7 @@ from src.data_processing.load_data import (
     build_parent_child_mappings,
 )
 
-from src.data_processing.process_data import compute_class_thresholds
+from data_preparation_granger import load_prepared_data
 
 # Suppress warnings for cleaner output
 import warnings
@@ -59,6 +59,7 @@ warnings.filterwarnings("ignore")
 
 # Define base directory
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'granger')
+AGGREGATION_LEVELS = ['all', 'by_day', 'by_recorder']
 os.makedirs(BASE_DIR, exist_ok=True)
 
 def main():
@@ -67,32 +68,42 @@ def main():
     print("\n=== Home Sounds Advanced Analysis ===")
     print("\nInitializing...")
     # Configuration
-    predictions_root_dir = PREDICTIONS_ROOT_DIR  # Update if necessary
-    confidence_threshold = 0.0  # Adjust as needed
     bin_size = 60  # Time bin size in seconds (e.g., 60 seconds for per-minute aggregation)
     selected_recorders = []  # List of recorder IDs to include; empty list means all
     normalize_by_recorders = False  # Set to True if you want to normalize counts
     start_time = time.time()
 
+    # Agregar checkpoints de tiempo
+    def log_progress(msg):
+        elapsed = (time.time() - start_time) / 3600
+        print(f"\n[{elapsed:.1f}h] {msg}")
+
+    def save_checkpoint(data, name):
+        checkpoint_dir = os.path.join(BASE_DIR, 'checkpoints', aggregation_level)
+        checkpoint_file = os.path.join(checkpoint_dir, f'checkpoint_{name}_{aggregation_level}.pkl')
+        os.makedirs(checkpoint_dir, exist_ok=True)  # Usar os.makedirs en lugar de mkdir
+        pd.to_pickle(data, checkpoint_file, compression='gzip')
+        print(f"\nSaved checkpoint: {checkpoint_file}")
+
     # HOME_SOUNDS classes provided
     HOME_SOUNDS = {
-        "Human voice": {},
-        "Domestic sounds, home sounds": {},
-        "Domestic animals, pets": {},
-        "Mechanisms": {},
-        "Liquid": {},
-        #########################################
-        "Speech": {},
-        "Door": {},
-        "Doorbell": {},
-        "Clock": {},
-        "Telephone": {},
-        "Pour": {},
-        "Glass": {},
-        "Splash, splatter": {},
-        "Cat": {},
-        "Dog": {},
-        "Power tool": {},
+        # "Human voice": {},
+        # "Domestic sounds, home sounds": {},
+        # "Domestic animals, pets": {},
+        # "Mechanisms": {},
+        # "Liquid": {},
+        # #########################################
+        # "Speech": {},
+        # "Door": {},
+        # "Doorbell": {},
+        # "Clock": {},
+        # "Telephone": {},
+        # "Pour": {},
+        # "Glass": {},
+        # "Splash, splatter": {},
+        # "Cat": {},
+        # "Dog": {},
+        # "Power tool": {},
         #########################################
         "Television": {},
         "Radio": {},
@@ -125,528 +136,265 @@ def main():
     }
 
     print(f"Starting analysis at: {datetime.datetime.now()}")
-    print(f"Expected completion in: {1344/4:.1f} hours")
-
-    # Add threshold configuration
-    CONFIDENCE_THRESHOLD = 0.5  # Base threshold
-    USE_VARIABLE_THRESHOLD = True  # Set to True to use quality-based thresholds
-    
-    # When calling process_predictions
-    presence_stats = process_predictions(
-        predictions_root_dir=PREDICTIONS_ROOT_DIR,
-        selected_class_names=HOME_SOUNDS.keys(),
-        threshold_str=str(CONFIDENCE_THRESHOLD),
-        use_variable_threshold=USE_VARIABLE_THRESHOLD
-    )
-    
-    # Print detailed presence statistics
-    print("\nSound Presence Statistics (with confidence thresholding):")
-    print("=" * 80)
-    print(f"{'Class Name':<30} {'Presence %':<12} {'Threshold':<12} {'Total Detections'}")
-    print("-" * 80)
-    
-    for class_name, stats in sorted(
-        presence_stats.items(), 
-        key=lambda x: x[1]['presence_ratio'], 
-        reverse=True
-    ):
-        print(f"{class_name:<30} {stats['presence_ratio']*100:>8.2f}%  {stats['threshold']:>8.2f}    {stats['total_detections']:>8}")
-
-    # Agregar checkpoints de tiempo
-    def log_progress(msg):
-        elapsed = (time.time() - start_time) / 3600
-        print(f"\n[{elapsed:.1f}h] {msg}")
-
-    def save_checkpoint(data, name):
-        checkpoint_dir = os.path.join(BASE_DIR, 'checkpoints')
-        os.makedirs(checkpoint_dir, exist_ok=True)  # Usar os.makedirs en lugar de mkdir
-        checkpoint_file = os.path.join(checkpoint_dir, f'checkpoint_{name}.pkl')  # Usar os.path.join en lugar de /
-        pd.to_pickle(data, checkpoint_file, compression='gzip')
-        print(f"\nSaved checkpoint: {checkpoint_file}")
-    
-    def check_memory():
-        memory = psutil.Process().memory_info().rss / 1024 / 1024
-        print(f"\nCurrent memory usage: {memory:.0f} MB")
 
     # Step 1: Load ontology and class labels
     print("\n=== Loading Data ===")
     ontology = load_ontology(ONTOLOGY_PATH)
     class_label_to_id, class_id_to_label = load_class_labels(CLASS_LABELS_CSV_PATH)
-    id_to_class, name_to_class_id = build_mappings(ontology)
-    parent_to_children, child_to_parents = build_parent_child_mappings(ontology)
 
-    # Step 2: Map HOME_SOUNDS classes to class IDs
-    #print("Mapping HOME_SOUNDS classes to class IDs...")
-    selected_class_ids = set()
-    for class_name in HOME_SOUNDS.keys():
-        class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
-        if class_id:
-            # Get all subclasses (descendants) including the class itself
-            subclasses = get_all_subclasses(class_id, parent_to_children)
-            selected_class_ids.update(subclasses)
-        else:
-            print(f"Class '{class_name}' not found in ontology.")
+    # Overwrite HOME_SOUNDS to include all classes
+    HOME_SOUNDS = {class_name: {} for class_name in class_label_to_id.keys()}
 
-    # Map class IDs back to class names for reference
-    selected_class_id_to_name = {class_id: id_to_class[class_id]['name'] for class_id in selected_class_ids}
+    print(f"Starting analysis at: {datetime.datetime.now()}")
 
-    # Create a set of selected class names
-    selected_class_names = set(selected_class_id_to_name.values())
+    # Step 1: Load ontology and class labels
+    print("\n=== Loading Data ===")
+    #ontology = load_ontology(ONTOLOGY_PATH)
+    class_label_to_id, class_id_to_label = load_class_labels(CLASS_LABELS_CSV_PATH)
+    #id_to_class, name_to_class_id = build_mappings(ontology)
+    #parent_to_children, child_to_parents = build_parent_child_mappings(ontology)
 
-    print(f"Total selected classes (including descendants): {len(selected_class_ids)}")
+    for aggregation_level in AGGREGATION_LEVELS:
+        print("\n" + "=" * 80)
+        print(f"Starting analysis for aggregation level: {aggregation_level}")
+        print(f"Timestamp: {datetime.datetime.now()}")
+        print("=" * 80 + "\n")
 
-    # Step 3: Process the dataset
-    print("Processing dataset...")
-    log_progress("Starting data processing...")
-    data_dir = predictions_root_dir
-    df_all, available_classes = process_all_files(
-        data_dir,
-        selected_class_names,
-        confidence_threshold,
-        bin_size,
-        selected_recorders
-    )
+        # Step 2: Map HOME_SOUNDS classes to class IDs
+        selected_class_id_to_name = class_id_to_label
+        selected_class_names = set(class_id_to_label.values())
+        print(f"Total selected classes: {len(selected_class_names)}")
 
-    def validate_results(df_all, available_classes):
-        # Validate unrealistic high frequencies
-        suspicious_classes = []
-        for cls in available_classes:
-            occurrence_rate = (df_all[cls] > 0).mean() * 100
-            if occurrence_rate > 75:  # Más del 75% del tiempo
-                suspicious_classes.append((cls, occurrence_rate))
-        
-        if suspicious_classes:
-            print("\nWARNING: Suspiciously high occurrence rates:")
-            for cls, rate in suspicious_classes:
-                print(f"- {cls}: {rate:.1f}% of time bins")
-                
-        # Validate memory scaling
-        total_hours = len(df_all) / 60  # assuming 60s bins
-        memory_per_hour = psutil.Process().memory_info().rss / (1024 * 1024 * total_hours)
-        projected_memory = memory_per_hour * 1344  # total dataset hours
-        
-        print(f"\nMemory Projection:")
-        print(f"Current: {memory_per_hour:.1f} MB/hour")
-        print(f"Projected for full dataset: {projected_memory/1024:.1f} GB")
-        
-        if projected_memory/1024 > 100:  # Si proyección > 100GB
-            print("WARNING: Memory usage might be too high for full dataset")
+        # selected_class_ids = set()
+        # for class_name in HOME_SOUNDS.keys():
+        #     class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
+        #     if class_id:
+        #         subclasses = get_all_subclasses(class_id, parent_to_children)
+        #         selected_class_ids.update(subclasses)
+        #     else:
+        #         print(f"Class '{class_name}' not found in ontology.")
+        # Map class IDs back to class names
+        #selected_class_id_to_name = {class_id: id_to_class[class_id]['name'] for class_id in selected_class_ids}
+        #selected_class_names = set(selected_class_id_to_name.values())
+        #print(f"Total selected classes (including descendants): {len(selected_class_ids)}")
 
-    validate_results(df_all, available_classes)
+        # Step 3: Load the prepared data
+        print("Loading prepared dataset...")
+        log_progress("Starting data loading...")
 
-    # Add here:
-    check_memory()
-    save_checkpoint({'df_all': df_all, 'available_classes': available_classes}, 
-                   'after_processing')
+        #aggregation_level = 'all'  # 'all', 'by_day', 'by_recorder'
+        normalize_data = True      # True para normalizar datos
 
-    # Check if data is available
-    if df_all.empty:
-        print("No data available after processing. Please check your configuration.")
-        return
-    
-    # Analyze class frequencies
-    class_frequencies = {}
-    for cls in available_classes:
-        non_zero_counts = (df_all[cls] > 0).sum()
-        class_frequencies[cls] = non_zero_counts
-    
-    print("\nClass Occurrence Statistics:")
-    for cls, freq in sorted(class_frequencies.items(), key=lambda x: x[1], reverse=True):
-        print(f"{cls}: {freq} occurrences ({(freq/len(df_all))*100:.2f}% of time bins)")
-    
-    # Filter out sparse classes
-    min_occurrence_threshold = len(df_all) * 0.05  # 5% threshold
-    active_classes = [cls for cls, freq in class_frequencies.items() 
-                     if freq >= min_occurrence_threshold]
-    
-    print(f"\nFiltering classes: {len(available_classes)} -> {len(active_classes)}")
-    available_classes = set(active_classes)
+        # Cargar los datos preparados
+        df_agg = load_prepared_data(aggregation_level, normalize=normalize_data)
 
-    # Filter selected_class_id_to_name to only include available classes
-    selected_class_id_to_name = {
-        class_id: name 
-        for class_id, name in selected_class_id_to_name.items() 
-        if name in available_classes
-    }
+        # Verificar si los datos están disponibles
+        if df_agg.empty:
+            print("No data available after loading. Please check your configuration.")
+            return
 
-    if not selected_class_id_to_name:
-        print("No selected classes found in the data. Please check class names.")
-        return
+        # Rename class ID columns to class names
+        df_agg.rename(columns=class_id_to_label, inplace=True)
 
-    print(f"\nProceeding with analysis for {len(selected_class_id_to_name)} available classes:")
-    for name in sorted(selected_class_id_to_name.values()):
-        print(f"  - {name}")
+        # Set index name to 'time_bin'
+        df_agg.index.name = 'time_bin'
 
-    # Step 4: Perform data analysis
-    print("\nPerforming data analysis...")
-    # Aggregate data over all recorders and time bins
-    available_columns = list(available_classes)
-    df_agg = df_all.groupby(['time_bin'])[available_columns].sum().reset_index()
+        # Update 'available_classes' based on the columns present in df_agg
+        available_classes = [col for col in df_agg.columns if col in selected_class_names]
 
-    # Normalize by number of recorders if needed
-    if normalize_by_recorders and selected_recorders:
-        num_recorders = len(selected_recorders)
-        df_agg[selected_class_id_to_name.values()] /= num_recorders
+        # Filter df_agg to include only the selected classes
+        df_agg = df_agg[available_classes]
 
-    # Ensure the time series is sorted by time
-    df_agg.sort_values('time_bin', inplace=True)
+        # Ensure the time series is sorted by time
+        df_agg.sort_index(inplace=True)
 
-    # Set 'time_bin' as index
-    df_agg.set_index('time_bin', inplace=True)
-    print("Rango de tiempo en df_agg:")
-    print(f"Inicio: {df_agg.index.min()}")
-    print(f"Fin: {df_agg.index.max()}")
-    print(f"Total de registros: {len(df_agg)}")
-    print(f"Tipo de índice de df_agg: {type(df_agg.index)}")
-    print(f"Frecuencia del índice antes de inferir: {df_agg.index.freq}")
-    print(f"Primeros 5 valores del índice:\n{df_agg.index[:5]}")
-    print(f"Diferencia entre los dos primeros índices: {df_agg.index[1] - df_agg.index[0]}")
-    print("Conteo de registros por marca de tiempo en df_agg:")
-    print(df_agg.index.value_counts())
-    df_agg.index.freq = pd.infer_freq(df_agg.index)
-    print(f"Frecuencia del índice después de inferir: {df_agg.index.freq}")
-
-    # Step 5: Advanced Analyses
-    log_progress("Starting statistical analysis...")
-    summary = {}
-    # Analysis 1: Time Series Analysis using ARIMA models
-    arima_models = fit_arima_models(df_agg, selected_class_id_to_name)
-    print(f"df_agg index after fit_arima_models:\n{df_agg.index}")
-
-    # Analysis 2: Cross-Correlation Functions with Lag Analysis
-    cross_correlations = compute_cross_correlations(df_agg, selected_class_id_to_name)
-    cross_corr_results = plot_cross_correlations(cross_correlations, len(df_agg))
-    if cross_corr_results is None:
-        print("Warning: plot_cross_correlations did not return results.")
-        cross_corr_results = {
-            'significant_correlations': [],
-            'confidence_threshold': None
-        }
-    # Add correlation analysis to summary
-    summary['correlation_analysis'] = {
-        'significant_correlations': cross_corr_results['significant_correlations'],
-        'total_correlations_found': len(cross_corr_results['significant_correlations']),
-        'confidence_threshold': cross_corr_results['confidence_threshold']
-    }
-
-    # Analysis 3: Granger Causality Tests
-    granger_results = perform_granger_causality_tests(df_agg, selected_class_id_to_name)
-
-    # Analysis 4: Principal Component Analysis (PCA)
-    pca_results = perform_pca(df_agg, selected_class_id_to_name)
-    save_checkpoint({'pca_results': pca_results}, 'pca')
-
-    # Analysis 5: UMAP
-    umap_results = perform_umap(df_agg, selected_class_id_to_name)
-    save_checkpoint({'umap_results': umap_results}, 'umap')
-
-    # Analysis 6: t-SNE
-    tsne_results = perform_tsne(df_agg, selected_class_id_to_name)
-    save_checkpoint({'tsne_results': tsne_results}, 'tsne')
-
-    # Step 6: Visualization
-    log_progress("Generating visualizations...")
-    plot_time_series(df_agg, selected_class_id_to_name)
-    correlation_matrix = compute_correlations(df_agg, selected_class_id_to_name)
-    save_checkpoint({'correlation_matrix': correlation_matrix}, 'correlations')
-    plot_correlation_matrix(correlation_matrix)
-    plot_cross_correlations(cross_correlations, len(df_agg))
-    plot_pca_results(pca_results, selected_class_id_to_name)
-    plot_umap_results(umap_results, df_agg, selected_class_id_to_name)
-    plot_tsne_results(tsne_results, df_agg, selected_class_id_to_name)
-
-    #df_agg = df_agg.asfreq('T')
-    # Create UMAP animation over time
-    print(f"df_agg before animation:\n{df_agg.head()}")
-    print(f"df_agg index frequency: {df_agg.index.freq}")
-    ani = create_umap_animation(df_agg, selected_class_id_to_name, window_minutes=15)
-    if ani is not None:
-        # Save the animation in GIF format
-        ani.save(os.path.join(BASE_DIR, 'figures', 'umap_animation.gif'), writer='imagemagick')
-    else:
-        print("UMAP animation was not generated due to lack of frames.")
-
-    # Save analysis summary
-    summary.update({
-        'dataset': {
-            'total_classes': len(available_classes),
-            'classes_analyzed': list(available_classes)
-        },
-        'time_series': {
-            'bin_size': bin_size,
-            'total_bins': len(df_agg),
-            'non_empty_bins_percent': (df_agg > 0).mean().to_dict()
-        },
-        'models': {
-            'successful_arima_fits': len(arima_models),
-            'pca_variance': float(pca_results['explained_variance'][0])
-        }
-    })
-    # Add presence statistics with thresholds
-    summary['presence_stats'] = {
-        class_name: {
-            'presence_ratio': float(stats['presence_ratio']),
-            'threshold_used': float(stats['threshold']),
-            'total_detections': int(stats['total_detections'])
-        }
-        for class_name, stats in presence_stats.items()
-    }
-
-    # Add correlation analysis
-    summary['correlation_analysis'] = {
-        'significant_correlations': cross_corr_results['significant_correlations'],
-        'total_correlations_found': len(cross_corr_results['significant_correlations']),
-        'confidence_threshold': cross_corr_results['confidence_threshold']
-    }
-
-    # Add Granger causality results
-    if granger_results:
-        summary['granger_analysis'] = {
-            'total_relationships_tested': granger_results['summary']['total_tests'],
-            'significant_relationships': granger_results['summary']['significant_relationships'],
-            'most_causal_sounds': [k for k, v in Counter(
-                rel['cause'] for rel in granger_results['significant_relationships']
-            ).most_common(5)],
-            'most_dependent_sounds': [k for k, v in Counter(
-                rel['effect'] for rel in granger_results['significant_relationships']
-            ).most_common(5)]
-        }
-    
-    os.makedirs(os.path.join(BASE_DIR, 'results'), exist_ok=True)
-    with open(os.path.join(BASE_DIR, 'results', 'analysis_summary.json'), 'w') as f:
-        json.dump(summary, f, indent=2)
-
-    total_time = (time.time() - start_time) / 3600
-    print(f"\nFinal processing time: {total_time:.1f} hours")
-
-def process_predictions(predictions_root_dir, selected_class_names, threshold_str='0.5', use_variable_threshold=False):
-    """
-    Process predictions with confidence thresholding
-    
-    Args:
-        predictions_root_dir: Root directory containing JSON files
-        selected_class_names: List of class names to analyze
-        threshold_str: Base confidence threshold (default '0.5')
-        use_variable_threshold: Whether to use variable thresholds based on class quality
-    """
-    # Load quality estimates and compute thresholds if needed
-    if use_variable_threshold:
-        class_label_to_id, class_id_to_label = load_class_labels(CLASS_LABELS_CSV_PATH)
-        class_thresholds = compute_class_thresholds(class_label_to_id, class_id_to_label)
-        print(f"Using variable thresholds based on class quality")
-    else:
-        class_thresholds = None
-        base_threshold = float(threshold_str)
-        print(f"Using fixed threshold: {base_threshold}")
-
-    def is_detection_valid(class_name, confidence):
-        """Helper function to check if a detection is valid based on threshold"""
-        if use_variable_threshold:
-            threshold = class_thresholds.get(class_name, float(threshold_str))
-        else:
-            threshold = float(threshold_str)
-        return confidence >= threshold
-
-    counts_per_file = []
-    
-    # Process each JSON file
-    for filename in os.listdir(predictions_root_dir):
-        if filename.endswith('.json'):
-            with open(os.path.join(predictions_root_dir, filename), 'r') as f:
-                data = json.load(f)
-                
-            frame_counts = defaultdict(int)
-            total_frames = 0
-            
-            for frame in data[:-1]:  # Exclude metadata
-                total_frames += 1
-                for pred in frame['predictions']:
-                    class_name = pred['class']
-                    confidence = pred['prob']
-                    
-                    # Only count if confidence exceeds threshold
-                    if class_name in selected_class_names and is_detection_valid(class_name, confidence):
-                        frame_counts[class_name] += 1
-            
-            counts_per_file.append({
-                'total_frames': total_frames,
-                'counts': dict(frame_counts)
-            })
-
-    # Calculate presence ratios
-    presence_stats = {}
-    for class_name in selected_class_names:
-        total_detections = sum(file['counts'].get(class_name, 0) for file in counts_per_file)
-        total_frames = sum(file['total_frames'] for file in counts_per_file)
-        actual_presence_ratio = total_detections / total_frames if total_frames > 0 else 0
-        
-        presence_stats[class_name] = {
-            'total_detections': total_detections,
-            'presence_ratio': actual_presence_ratio,
-            'threshold': class_thresholds.get(class_name, float(threshold_str)) if use_variable_threshold else float(threshold_str)
-        }
-        
-    return presence_stats
-
-def process_all_files(data_dir, selected_class_names, confidence_threshold, bin_size, selected_recorders):
-    from pathlib import Path
-    import gc  # Para garbage collection
-    
-    total_hours = 0
-    total_files = 0
-    df_buffer = []  # Buffer para almacenar DataFrames temporales
-    buffer_size = min(50, total_files // 20)  # Máximo 20 chunks
-    available_classes = set()
-    
-    # First pass: count total files
-    print("\nCounting files...")
-    total_files = sum(1 for recorder in os.listdir(data_dir) 
-                     if os.path.isdir(os.path.join(data_dir, recorder))
-                     for _ in os.listdir(os.path.join(data_dir, recorder))
-                     if _.endswith('.json'))
-    
-    processed_files = 0
-    print(f"\nProcessing {total_files} files...")
-    
-    # Loop through recorder directories
-    for recorder in os.listdir(data_dir):
-        recorder_dir = os.path.join(data_dir, recorder)
-        if os.path.isdir(recorder_dir):
-            if selected_recorders and recorder not in selected_recorders:
-                continue
-                
-            print(f"\nProcessing recorder: {recorder}")
-            
-            # Create a temporary list for this recorder
-            recorder_data = []
-            
-            for filename in os.listdir(recorder_dir):
-                if filename.endswith('.json'):
-                    processed_files += 1
-                    file_path = os.path.join(recorder_dir, filename)
-                    
-                    # Update progress every 10 files
-                    if processed_files % 10 == 0:
-                        print(f"Progress: {processed_files}/{total_files} files ({processed_files/total_files*100:.1f}%)")
-                        
-                    try:
-                        frames_data = load_and_filter_predictions(
-                            file_path,
-                            selected_class_names,
-                            confidence_threshold
-                        )
-                        
-                        if frames_data:
-                            # Update available classes
-                            for frame in frames_data:
-                                available_classes.update(k for k in frame.keys() if k != 'time')
-                            
-                            df_agg = aggregate_frames(frames_data, bin_size)
-                            if df_agg is not None:
-                                recorder_data.append(df_agg)
-                                
-                            # Process buffer if full
-                            if len(recorder_data) >= buffer_size:
-                                temp_df = pd.concat(recorder_data, ignore_index=True)
-                                df_buffer.append(temp_df)
-                                recorder_data = []  # Clear buffer
-                                gc.collect()  # Force garbage collection
-                                
-                    except Exception as e:
-                        print(f"\nError processing file {file_path}: {str(e)}")
-                        continue
-            
-            # Process remaining files in recorder
-            if recorder_data:
-                temp_df = pd.concat(recorder_data, ignore_index=True)
-                df_buffer.append(temp_df)
-                recorder_data = []
-                gc.collect()
-    
-    # Final processing
-    if df_buffer:
-        print("\nConcatenating all processed data...")
-        df_all = pd.concat(df_buffer, ignore_index=True)
-        del df_buffer  # Free memory
-        gc.collect()
-        
-        print(f"Found {len(available_classes)} classes in data")
-        print("\nClasses found:")
-        for cls in sorted(available_classes):
-            print(f"- {cls}")
-        return df_all, available_classes
-    else:
-        print("\nNo data was processed successfully")
-        return pd.DataFrame(), set()
-
-def load_and_filter_predictions(file_path, selected_class_names, confidence_threshold):
-    with open(file_path, 'r') as f:
-        data = json.load(f)
-
-    # Extract datetime from filename
-    filename = os.path.basename(file_path)
-    file_datetime = extract_datetime_from_filename(filename)
-    print(f"File: {filename}, Date and time extracted: {file_datetime}")
-    if not file_datetime:
-        print(f"Could not extract date and time from file: {filename}")
-        return None
-
-    frames_data = []
-    for frame in data:
-        if 'predictions' in frame:
-            frame_time = frame['time']
-            absolute_time = file_datetime + datetime.timedelta(seconds=frame_time)
-            #print(f"Frame time: {frame_time}, Absolute time: {absolute_time}")
-            predictions = frame['predictions']
-            # Filter predictions based on selected class names and confidence threshold
-            filtered_preds = {
-                pred['class']: pred['prob']
-                for pred in predictions
-                if pred['class'] in selected_class_names and pred['prob'] >= confidence_threshold
+        # Calcular presence_stats directamente desde df_agg
+        presence_stats = {}
+        total_time_bins = len(df_agg)
+        for class_name in available_classes:
+            total_detections = df_agg[class_name].sum()
+            presence_ratio = (df_agg[class_name] > 0).sum() / total_time_bins
+            presence_stats[class_name] = {
+                'total_detections': int(total_detections),
+                'presence_ratio': float(presence_ratio)
             }
-            if filtered_preds:
-                # Adjust time to absolute datetime
-                absolute_time = file_datetime + datetime.timedelta(seconds=frame_time)
-                frames_data.append({'time': absolute_time, **filtered_preds})
-    return frames_data
 
-def aggregate_frames(frames_data, bin_size):
-    df = pd.DataFrame(frames_data)
-    if df.empty:
-        return None
+        print(f"Aggregation Level: {aggregation_level}")
+        if aggregation_level == 'by_day':
+            print("Data is aggregated by day.")
+            # Optionally, print the days included in the analysis
+            print(f"Days included in analysis: {df_agg.index.get_level_values('date').unique()}")
+        elif aggregation_level == 'by_recorder':
+            print("Data is aggregated by day and recorder.")
+            # Optionally, print the recorders included
+            print(f"Recorders included in analysis: {df_agg.index.get_level_values('recorder_id').unique()}")
+        else:
+            print("Data is aggregated across all data.")
+
+        # Imprimir estadísticas detalladas
+        print("\nSound Presence Statistics:")
+        print("=" * 80)
+        print(f"{'Class Name':<30} {'Presence %':<12} {'Total Detections'}")
+        print("-" * 80)
+
+        for class_name, stats in sorted(
+            presence_stats.items(), 
+            key=lambda x: x[1]['presence_ratio'], 
+            reverse=True
+        ):
+            print(f"{class_name:<30} {stats['presence_ratio']*100:>8.2f}%    {stats['total_detections']:>8}")
+
+        # Continuar con el análisis
+        print(f"\nProceeding with analysis for {len(available_classes)} available classes:")
+        for name in sorted(available_classes):
+            print(f"  - {name}")
+
+        # Step 4: Perform data analysis
+        print("\nPerforming data analysis...")
+
+        # Normalizar si es necesario
+        if normalize_by_recorders and selected_recorders:
+            num_recorders = len(selected_recorders)
+            df_agg[available_classes] /= num_recorders
+
+        # Asegurarse de que la serie temporal esté ordenada por tiempo
+        df_agg.sort_index(inplace=True)
+
+        # Set 'time_bin' as index
+        print("Rango de tiempo en df_agg:")
+        print(f"Inicio: {df_agg.index.min()}")
+        print(f"Fin: {df_agg.index.max()}")
+        print(f"Total de registros: {len(df_agg)}")
+        print(f"Tipo de índice de df_agg: {type(df_agg.index)}")
+        print(f"Frecuencia del índice antes de inferir: {df_agg.index.freq}")
+        print(f"Primeros 5 valores del índice:\n{df_agg.index[:5]}")
+        print(f"Diferencia entre los dos primeros índices: {df_agg.index[1] - df_agg.index[0]}")
+        print("Conteo de registros por marca de tiempo en df_agg:")
+        print(df_agg.index.value_counts())
+        df_agg.index.freq = pd.infer_freq(df_agg.index)
+        print(f"Frecuencia del índice después de inferir: {df_agg.index.freq}")
+
+        # Step 5: Advanced Analyses
+        log_progress("Starting statistical analysis...")
+        summary = {}
+        # Analysis 1: Time Series Analysis using ARIMA models
+        arima_models = fit_arima_models(df_agg, selected_class_id_to_name)
+        print(f"df_agg index after fit_arima_models:\n{df_agg.index}")
+
+        # Analysis 2: Cross-Correlation Functions with Lag Analysis
+        cross_correlations = compute_cross_correlations(df_agg, selected_class_id_to_name)
+        cross_corr_results = plot_cross_correlations(cross_correlations, len(df_agg), aggregation_level)
+        if cross_corr_results is None:
+            print("Warning: plot_cross_correlations did not return results.")
+            cross_corr_results = {
+                'significant_correlations': [],
+                'confidence_threshold': None
+            }
+        # Add correlation analysis to summary
+        summary['correlation_analysis'] = {
+            'significant_correlations': cross_corr_results['significant_correlations'],
+            'total_correlations_found': len(cross_corr_results['significant_correlations']),
+            'confidence_threshold': cross_corr_results['confidence_threshold']
+        }
+
+        # Analysis 3: Granger Causality Tests
+        granger_results = perform_granger_causality_tests(df_agg, selected_class_id_to_name, aggregation_level)
+
+        # Analysis 4: Principal Component Analysis (PCA)
+        pca_results = perform_pca(df_agg, selected_class_id_to_name)
+        save_checkpoint({'pca_results': pca_results}, 'pca')
+
+        # Analysis 5: UMAP
+        umap_results = perform_umap(df_agg, selected_class_id_to_name)
+        save_checkpoint({'umap_results': umap_results}, 'umap')
+
+        # Analysis 6: t-SNE
+        tsne_results = perform_tsne(df_agg, selected_class_id_to_name)
+        save_checkpoint({'tsne_results': tsne_results}, 'tsne')
+
+        # Step 6: Visualization
+        log_progress("Generating visualizations...")
+        plot_time_series(df_agg, selected_class_id_to_name, aggregation_level)
+        correlation_matrix = compute_correlations(df_agg, selected_class_id_to_name)
+        save_checkpoint({'correlation_matrix': correlation_matrix}, 'correlations')
+        plot_correlation_matrix(correlation_matrix, aggregation_level)
+        plot_cross_correlations(cross_correlations, len(df_agg), aggregation_level)
+        plot_pca_results(pca_results, selected_class_id_to_name, aggregation_level)
+        plot_umap_results(umap_results, df_agg, selected_class_id_to_name, aggregation_level)
+        plot_tsne_results(tsne_results, df_agg, selected_class_id_to_name, aggregation_level)
+
+        #df_agg = df_agg.asfreq('T')
+        # Create UMAP animation over time
+        print(f"df_agg before animation:\n{df_agg.head()}")
+        print(f"df_agg index frequency: {df_agg.index.freq}")
+        ani = create_umap_animation(df_agg, selected_class_id_to_name, aggregation_level, window_minutes=15)
+        if ani is not None:
+            # Save the animation in GIF format
+            ani.save(os.path.join(BASE_DIR, 'figures', aggregation_level, f'umap_animation_{aggregation_level}.gif'), writer='imagemagick')
+        else:
+            print("UMAP animation was not generated due to lack of frames.")
+
+        # Save analysis summary
+        summary.update({
+            'dataset': {
+                'total_classes': len(available_classes),
+                'classes_analyzed': list(available_classes)
+            },
+            'time_series': {
+                'bin_size': bin_size,
+                'total_bins': len(df_agg),
+                'non_empty_bins_percent': (df_agg > 0).mean().to_dict()
+            },
+            'models': {
+                'successful_arima_fits': len(arima_models),
+                'pca_variance': float(pca_results['explained_variance'][0])
+            }
+        })
+        # Add presence statistics with thresholds
+        summary['presence_stats'] = {
+            class_name: {
+                'presence_ratio': float(stats['presence_ratio']),
+                'total_detections': int(stats['total_detections'])
+            }
+            for class_name, stats in presence_stats.items()
+        }
+
+        # Add correlation analysis
+        summary['correlation_analysis'] = {
+            'significant_correlations': cross_corr_results['significant_correlations'],
+            'total_correlations_found': len(cross_corr_results['significant_correlations']),
+            'confidence_threshold': cross_corr_results['confidence_threshold']
+        }
+
+        # Add Granger causality results
+        if granger_results:
+            summary['granger_analysis'] = {
+                'total_relationships_tested': granger_results['summary']['total_tests'],
+                'significant_relationships': granger_results['summary']['significant_relationships'],
+                'most_causal_sounds': [k for k, v in Counter(
+                    rel['cause'] for rel in granger_results['significant_relationships']
+                ).most_common(5)],
+                'most_dependent_sounds': [k for k, v in Counter(
+                    rel['effect'] for rel in granger_results['significant_relationships']
+                ).most_common(5)]
+            }
         
-    # Add adaptive binning based on data sparsity
-    total_duration = (df['time'].max() - df['time'].min()).total_seconds()
-    if total_duration < 3600:  # Less than 1 hour of data
-        print("Warning: Limited data detected in file")
-        
-    # Create time bins
-    df['time_bin'] = df['time'].dt.floor(f'{bin_size}S')
-    
-    # Count number of samples per bin
-    samples_per_bin = df.groupby('time_bin').size()
-    
-    # Print bin statistics for this file
-    print(f"\nBin statistics for file:")
-    print(f"- Average samples per bin: {samples_per_bin.mean():.2f}")
-    print(f"- Empty bins: {(samples_per_bin == 0).sum()}")
-    print(f"- Total bins: {len(samples_per_bin)}")
-    
-    # Sum probabilities within each bin
-    aggregation_columns = df.columns.difference(['time', 'time_bin'])
-    df_agg = df.groupby('time_bin')[aggregation_columns].sum().reset_index()
-    
-    return df_agg
+        os.makedirs(os.path.join(BASE_DIR, 'results'), exist_ok=True)
+        with open(os.path.join(BASE_DIR, 'results', f'analysis_summary_{aggregation_level}.json'), 'w') as f:
+            json.dump(summary, f, indent=2)
+
+        total_time = (time.time() - start_time) / 3600
+        print(f"\nFinal processing time: {total_time:.1f} hours")
 
 def fit_arima_models(df_agg, selected_class_id_to_name):
     from statsmodels.tsa.arima.model import ARIMA
     from statsmodels.tsa.stattools import adfuller
     arima_models = {}
-    print("\nTime Series Analysis (frame interval: {:.3f}s)".format((320 * 32) / 48000))
-    
-    #df_agg.index = pd.date_range(start=df_agg.index[0], periods=len(df_agg), freq='213333U')  # microseconds
+    print("\nTime Series Analysis")
+    print(f"Resolution: {len(df_agg)} minute-level samples")
+
     df_local = df_agg.copy()
-    df_local.index = pd.date_range(start=df_agg.index[0], periods=len(df_agg), freq='213333U')  # microseconds
+    df_local.index = pd.date_range(start=df_agg.index[0], periods=len(df_agg), freq='T')  # 'T' for minute frequency
 
     for cls in selected_class_id_to_name.values():
         ts = df_agg[cls].fillna(0)
@@ -729,7 +477,7 @@ def perform_tsne(df_agg, selected_class_id_to_name, perplexity=30, n_iter=1000):
     }
     return tsne_results
 
-def perform_granger_causality_tests(df_agg, selected_class_id_to_name, maxlag=5):
+def perform_granger_causality_tests(df_agg, selected_class_id_to_name, aggregation_level, maxlag=5):
     from statsmodels.tsa.stattools import grangercausalitytests
     granger_results = {}
     print("\n3. Granger Causality Tests")
@@ -781,7 +529,7 @@ def perform_granger_causality_tests(df_agg, selected_class_id_to_name, maxlag=5)
         print(f"{rel['cause']:<25} {rel['effect']:<25} {rel['p_value']:.4f}    {rel['best_lag']}")
     
     # Save detailed results
-    results_dir = os.path.join(BASE_DIR, 'results')
+    results_dir = os.path.join(BASE_DIR, 'results', aggregation_level)
     os.makedirs(results_dir, exist_ok=True)
     
     granger_output = {
@@ -796,11 +544,11 @@ def perform_granger_causality_tests(df_agg, selected_class_id_to_name, maxlag=5)
         }
     }
     
-    with open(os.path.join(results_dir, 'granger_causality_results.json'), 'w') as f:
+    with open(os.path.join(results_dir, f'granger_causality_results_{aggregation_level}.json'), 'w') as f:
         json.dump(granger_output, f, indent=2)
     
     print(f"\nTotal number of significant causal relationships found: {len(significant_relationships)}")
-    print(f"Full results saved to: {os.path.join(results_dir, 'granger_causality_results.json')}")
+    print(f"Full results saved to: {os.path.join(results_dir, f'granger_causality_results_{aggregation_level}.json')}")
     
     # Add some interpretation of findings
     if significant_relationships:
@@ -844,28 +592,28 @@ def compute_correlations(df_agg, selected_class_id_to_name):
     print(correlation_matrix)
     return correlation_matrix
 
-def plot_time_series(df_agg, selected_class_id_to_name):
-    os.makedirs(os.path.join(BASE_DIR, 'figures'), exist_ok=True)
+def plot_time_series(df_agg, selected_class_id_to_name, aggregation_level):
+    os.makedirs(os.path.join(BASE_DIR, 'figures', aggregation_level), exist_ok=True)
     class_names = list(selected_class_id_to_name.values())
     plt.figure(figsize=(12, 6))
     for cls in class_names:
         plt.plot(df_agg.index, df_agg[cls], label=cls)
     plt.xlabel('Time')
     plt.ylabel('Aggregated Probability')
-    plt.title('Event Probabilities Over Time')
+    plt.title(f'Event Probabilities Over Time ({aggregation_level})')
     plt.legend()
-    plt.savefig(os.path.join(BASE_DIR, 'figures', 'time_series.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(BASE_DIR, 'figures', f'time_series_{aggregation_level}.png'), dpi=300, bbox_inches='tight')
     plt.close()
 
-def plot_correlation_matrix(correlation_matrix):
-    os.makedirs(os.path.join(BASE_DIR, 'figures'), exist_ok=True)
+def plot_correlation_matrix(correlation_matrix, aggregation_level):
+    os.makedirs(os.path.join(BASE_DIR, 'figures', aggregation_level), exist_ok=True)
     plt.figure(figsize=(10, 8))
     sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm')
-    plt.title('Correlation Matrix')
-    plt.savefig(os.path.join(BASE_DIR, 'figures', 'correlation_matrix.png'), dpi=300, bbox_inches='tight')
+    plt.title(f'Correlation Matrix ({aggregation_level})')
+    plt.savefig(os.path.join(BASE_DIR, 'figures', f'correlation_matrix_{aggregation_level}.png'), dpi=300, bbox_inches='tight')
     plt.close()
 
-def plot_cross_correlations(cross_correlations, sample_size):
+def plot_cross_correlations(cross_correlations, sample_size, aggregation_level):
     print("\nAnalyzing cross-correlations...")
     
     # Calculate significance threshold
@@ -892,7 +640,7 @@ def plot_cross_correlations(cross_correlations, sample_size):
         
         # Save results
         os.makedirs(os.path.join(BASE_DIR, 'results'), exist_ok=True)
-        with open(os.path.join(BASE_DIR, 'results', 'significant_correlations.json'), 'w') as f:
+        with open(os.path.join(BASE_DIR, 'results', f'significant_correlations_{aggregation_level}.json'), 'w') as f:
             json.dump({
                 'confidence_threshold': conf_int,
                 'significant_pairs': significant_correlations
@@ -922,7 +670,7 @@ def plot_cross_correlations(cross_correlations, sample_size):
                         vmin=-1,
                         vmax=1)
             
-            plt.title('Top 20 Strongest Cross-Correlations')
+            plt.title(f'Top 20 Strongest Cross-Correlations ({aggregation_level})')
             plt.xticks(rotation=45, ha='right')
             plt.yticks(rotation=0)
             plt.tight_layout()
@@ -949,43 +697,43 @@ def plot_cross_correlations(cross_correlations, sample_size):
         }
 
 
-def plot_pca_results(pca_results, selected_class_id_to_name):
-    os.makedirs(os.path.join(BASE_DIR, 'figures'), exist_ok=True)
+def plot_pca_results(pca_results, selected_class_id_to_name, aggregation_level):
+    os.makedirs(os.path.join(BASE_DIR, 'figures', aggregation_level), exist_ok=True)
     principal_components = pca_results['principal_components']
     plt.figure(figsize=(8, 6))
     plt.scatter(principal_components[:, 0], principal_components[:, 1], alpha=0.5)
-    plt.title('PCA of Selected Classes')
+    plt.title(f'PCA of Selected Classes ({aggregation_level})')
     plt.xlabel('Principal Component 1')
     plt.ylabel('Principal Component 2')
     plt.grid(True)
     plt.savefig(os.path.join(BASE_DIR, 'figures', 'pca_results.png'), dpi=300, bbox_inches='tight')
     plt.close()
 
-def plot_umap_results(umap_results, df_agg, selected_class_id_to_name):
-    os.makedirs(os.path.join(BASE_DIR, 'figures'), exist_ok=True)
+def plot_umap_results(umap_results, df_agg, selected_class_id_to_name, aggregation_level):
+    os.makedirs(os.path.join(BASE_DIR, 'figures', aggregation_level), exist_ok=True)
     embedding = umap_results['embedding']
     plt.figure(figsize=(8, 6))
     plt.scatter(embedding[:, 0], embedding[:, 1], alpha=0.5, c='blue', s=10)
-    plt.title('UMAP of Selected Classes')
+    plt.title(f'UMAP of Selected Classes ({aggregation_level})')
     plt.xlabel('UMAP 1')
     plt.ylabel('UMAP 2')
     plt.grid(True)
-    plt.savefig(os.path.join(BASE_DIR, 'figures', 'umap_results.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(BASE_DIR, 'figures', f'umap_results_{aggregation_level}.png'), dpi=300, bbox_inches='tight')
     plt.close()
 
-def plot_tsne_results(tsne_results, df_agg, selected_class_id_to_name):
-    os.makedirs(os.path.join(BASE_DIR, 'figures'), exist_ok=True)
+def plot_tsne_results(tsne_results, df_agg, selected_class_id_to_name, aggregation_level):
+    os.makedirs(os.path.join(BASE_DIR, 'figures', aggregation_level), exist_ok=True)
     embedding = tsne_results['embedding']
     plt.figure(figsize=(8, 6))
     plt.scatter(embedding[:, 0], embedding[:, 1], alpha=0.5, c='green', s=10)
-    plt.title('t-SNE of Selected Classes')
+    plt.title(f't-SNE of Selected Classes ({aggregation_level})')
     plt.xlabel('t-SNE 1')
     plt.ylabel('t-SNE 2')
     plt.grid(True)
-    plt.savefig(os.path.join(BASE_DIR, 'figures', 'tsne_results.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(BASE_DIR, 'figures', f'tsne_results_{aggregation_level}.png'), dpi=300, bbox_inches='tight')
     plt.close()
 
-def create_umap_animation(df_agg, selected_class_id_to_name, window_minutes=15):
+def create_umap_animation(df_agg, selected_class_id_to_name, aggregation_level, window_minutes=15):
     """
     Creates an animated visualization of UMAP embeddings over time and saves intermediate data.
 
@@ -1115,7 +863,7 @@ def create_umap_animation(df_agg, selected_class_id_to_name, window_minutes=15):
         }
     }
 
-    intermediate_file = os.path.join(BASE_DIR, 'results', 'umap_intermediate_data.pkl')
+    intermediate_file = os.path.join(BASE_DIR, 'results', aggregation_level, f'umap_intermediate_data_{aggregation_level}.pkl')
     os.makedirs(os.path.dirname(intermediate_file), exist_ok=True)
     with open(intermediate_file, 'wb') as f:
         pickle.dump(intermediate_data, f)
@@ -1129,7 +877,7 @@ def create_umap_animation(df_agg, selected_class_id_to_name, window_minutes=15):
     return None  # Return None as we are focusing on saving intermediate data
 
 
-def generate_video_from_intermediate_data(intermediate_file, title="UMAP Animation", legend=True):
+def generate_video_from_intermediate_data(intermediate_file, aggregation_level, title="UMAP Animation", legend=True):
     """
     Generates a video from saved UMAP embeddings and allows customization.
 
@@ -1219,12 +967,12 @@ def generate_video_from_intermediate_data(intermediate_file, title="UMAP Animati
         ani = animation.ArtistAnimation(fig, ims, interval=500, blit=True)
 
         # Save the MP4 video
-        video_filename = os.path.join(BASE_DIR, 'figures', 'umap_animation_custom.mp4')
+        video_filename = os.path.join(BASE_DIR, 'figures', aggregation_level, 'umap_animation_custom.mp4')
         ani.save(video_filename, writer='ffmpeg', fps=2)
         print(f"Video saved to: {video_filename}")
 
         # Save the GIF file
-        gif_filename = os.path.join(BASE_DIR, 'figures', 'umap_animation_custom.gif')
+        gif_filename = os.path.join(BASE_DIR, 'figures', aggregation_level, 'umap_animation_custom.gif')
         ani.save(gif_filename, writer='pillow', fps=2)
         print(f"GIF saved to: {gif_filename}")
 
@@ -1259,10 +1007,12 @@ if __name__ == '__main__':
         # Print to console that the log was saved
         print(f"\nLog saved to: {log_file}")
 
-        # After full analysis, generate video
-        intermediate_file = os.path.join(BASE_DIR, 'results', 'umap_intermediate_data.pkl')
-        generate_video_from_intermediate_data(intermediate_file, title="UMAP Animation", legend=True)
+        # After full analysis, generate video for each aggregation level
+        for aggregation_level in AGGREGATION_LEVELS:
+            intermediate_file = os.path.join(BASE_DIR, 'results', aggregation_level, f'umap_intermediate_data_{aggregation_level}.pkl')
+            generate_video_from_intermediate_data(intermediate_file, aggregation_level, title=f"UMAP Animation - {aggregation_level}", legend=True)
     else:
-        # Only generate the video from intermediate data
-        intermediate_file = os.path.join(BASE_DIR, 'results', 'umap_intermediate_data.pkl')
-        generate_video_from_intermediate_data(intermediate_file, title="UMAP Animation", legend=True)
+        # Only generate the video from intermediate data for each aggregation level
+        for aggregation_level in AGGREGATION_LEVELS:
+            intermediate_file = os.path.join(BASE_DIR, 'results', aggregation_level, f'umap_intermediate_data_{aggregation_level}.pkl')
+            generate_video_from_intermediate_data(intermediate_file, aggregation_level, title=f"UMAP Animation - {aggregation_level}", legend=True)
