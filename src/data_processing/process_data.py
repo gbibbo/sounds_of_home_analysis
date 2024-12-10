@@ -46,7 +46,7 @@ def compute_class_thresholds(class_label_to_id, class_id_to_label):
         label_quality = LABEL_QUALITY_ESTIMATES.get(class_label, 50)  # Default to 50% if not found
 
         # Linear interpolation between 0.2 and the default confidence threshold
-        threshold = 0.2 + (config.DEFAULT_CONFIDENCE_THRESHOLD - 0.2) * (label_quality / 100)
+        threshold = 0.1 + (config.DEFAULT_CONFIDENCE_THRESHOLD - 0.1) * (label_quality / 100)
         class_thresholds[class_label] = threshold
 
     return class_thresholds

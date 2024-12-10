@@ -4,6 +4,7 @@ import os
 
 # Root directory containing the recorder folders
 PREDICTIONS_ROOT_DIR = 'assets/sample_data_light'
+#PREDICTIONS_ROOT_DIR = 'assets/dataset'
 #PREDICTIONS_ROOT_DIR = '/vol/research/datasets/audio/AI4S_SoH/VITALISE data light/Cnn14_DecisionLevelAtt_light'
 
 # Paths to the ontology and class labels files
@@ -12,12 +13,12 @@ ONTOLOGY_PATH = os.path.join(BASE_DIR, '../metadata/ontology.json')
 CLASS_LABELS_CSV_PATH = os.path.join(BASE_DIR, '../metadata/class_labels_indices.csv')
 
 # Confidence threshold for predictions
-CONFIDENCE_THRESHOLD = 0.5  # Default value
-CONFIDENCE_THRESHOLD_STR = '0.5'  # Default string value
+CONFIDENCE_THRESHOLD = 0.35  # Default value
+CONFIDENCE_THRESHOLD_STR = '0.35'  # Default string value
 
 # Default confidence threshold for labels with 100% quality estimation
-DEFAULT_CONFIDENCE_THRESHOLD = 0.5  # You can change this value as needed
-USE_LABEL_QUALITY_THRESHOLDS = False  # Set to True to use variable thresholds
+DEFAULT_CONFIDENCE_THRESHOLD = 0.35  # You can change this value as needed
+USE_LABEL_QUALITY_THRESHOLDS = True  # Set to True to use variable thresholds
 
 # Path to the label quality estimates file
 LABEL_QUALITY_ESTIMATES_PATH = os.path.join(BASE_DIR, '../metadata/audioset_data.csv')
