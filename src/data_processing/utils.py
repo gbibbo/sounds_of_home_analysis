@@ -86,3 +86,18 @@ def get_available_hours(predictions_root_dir, recorders):
                     hours_set.add(hour_str)
         available_hours[recorder] = sorted(hours_set)
     return available_hours
+
+def get_num_recorders(dataset_dir):
+    """
+    Counts how many recorder directories in dataset_dir have at least one JSON file.
+    A recorder directory is considered active if it contains at least one .json file.
+    """
+    import os
+    recorder_folders = [f for f in os.listdir(dataset_dir) if os.path.isdir(os.path.join(dataset_dir, f))]
+    active_count = 0
+    for rec in recorder_folders:
+        rec_path = os.path.join(dataset_dir, rec)
+        # Check if there's any JSON file inside
+        if any(fn.endswith('.json') for fn in os.listdir(rec_path) if os.path.isfile(os.path.join(rec_path, fn))):
+            active_count += 1
+    return active_count
