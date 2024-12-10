@@ -30,6 +30,7 @@ from tqdm import tqdm
 
 import numpy as np
 import pandas as pd
+import psutil
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.manifold import TSNE
@@ -43,6 +44,7 @@ from src.data_processing.utils import (
     get_class_id,
     get_all_subclasses,
     extract_datetime_from_filename,
+    get_num_recorders,
 )
 from src.data_processing.load_data import (
     load_ontology,
@@ -57,6 +59,11 @@ from data_preparation_granger import load_prepared_data
 import warnings
 warnings.filterwarnings("ignore")
 
+def print_memory_usage():
+    """Monitors memory usage of the current process."""
+    process = psutil.Process()
+    print(f"Memory usage: {process.memory_info().rss / 1024 / 1024:.2f} MB")
+
 # Define base directory
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'granger')
 AGGREGATION_LEVELS = ['all', 'by_day', 'by_recorder']
@@ -67,6 +74,10 @@ def main():
     from pathlib import Path
     print("\n=== Home Sounds Advanced Analysis ===")
     print("\nInitializing...")
+
+    print("\nInitial memory usage:")
+    print_memory_usage() 
+
     # Configuration
     bin_size = 60  # Time bin size in seconds (e.g., 60 seconds for per-minute aggregation)
     selected_recorders = []  # List of recorder IDs to include; empty list means all
@@ -139,20 +150,45 @@ def main():
 
     # Step 1: Load ontology and class labels
     print("\n=== Loading Data ===")
-    ontology = load_ontology(ONTOLOGY_PATH)
     class_label_to_id, class_id_to_label = load_class_labels(CLASS_LABELS_CSV_PATH)
+    # Reconstruir class_label_to_id para preservar la capitalización
+    class_label_to_id = {label: class_id for class_id, label in class_id_to_label.items()}
+
+    # DEBUG: Verificar la presencia de clases problemáticas
+    problematic_ids = [
+        '/t/dd00092', '/m/04rlf', '/m/068hy', '/m/07yv9', '/m/0fqfqc',
+        '/m/07qwyj0', '/m/09t49', '/m/03vt0', '/m/06d_3', '/m/028v0c',
+        '/m/07jdr', '/m/07rcgpl', '/m/081rb', '/m/07qc9xj', '/m/01h3n',
+        '/m/01jg1z', '/m/0k5j', '/m/02mk9', '/m/07pjwq1', '/m/0h2mp',
+        '/m/015p6', '/m/02y_763', '/m/0chx_', '/m/096m7z', '/m/09d5_',
+        '/m/03m9d0z', '/m/07rgkc5', '/m/0jbk', '/m/0k4j', '/m/078jl',
+        '/m/02x984l', '/m/09x0r', '/m/0cj0r', '/m/01x3z', '/m/07p_0gm',
+        '/m/07qjznl', '/m/07qjznt', '/t/dd00129', '/m/07q0yl5', '/m/01g50p',
+        '/m/06xkwv', '/m/0395lw', '/m/03w41f', '/m/02dgv', '/m/0cmf2',
+        '/m/019jd', '/m/04rmv'
+    ]
+
+    for cid in problematic_ids:
+        if cid in class_id_to_label:
+            print(f"DEBUG: {cid} está presente con label: '{class_id_to_label[cid]}'")
+        else:
+            print(f"DEBUG: {cid} NO está presente en class_id_to_label")
+
+    # DEBUG START
+    print("Tras cargar y reconstruir las clases:")
+    print("Len class_label_to_id:", len(class_label_to_id))
+    print("Len class_id_to_label:", len(class_id_to_label))
+    print("Algunas claves en class_id_to_label:", list(class_id_to_label.items())[:10])
+    print("Algunas claves en class_label_to_id:", list(class_label_to_id.items())[:10])
+    # DEBUG END
 
     # Overwrite HOME_SOUNDS to include all classes
     HOME_SOUNDS = {class_name: {} for class_name in class_label_to_id.keys()}
 
-    print(f"Starting analysis at: {datetime.datetime.now()}")
+    # Actualizar selected_class_names
+    selected_class_names = set(HOME_SOUNDS.keys())
 
-    # Step 1: Load ontology and class labels
-    print("\n=== Loading Data ===")
-    #ontology = load_ontology(ONTOLOGY_PATH)
-    class_label_to_id, class_id_to_label = load_class_labels(CLASS_LABELS_CSV_PATH)
-    #id_to_class, name_to_class_id = build_mappings(ontology)
-    #parent_to_children, child_to_parents = build_parent_child_mappings(ontology)
+    print(f"Starting analysis at: {datetime.datetime.now()}")
 
     for aggregation_level in AGGREGATION_LEVELS:
         print("\n" + "=" * 80)
@@ -160,119 +196,408 @@ def main():
         print(f"Timestamp: {datetime.datetime.now()}")
         print("=" * 80 + "\n")
 
-        # Step 2: Map HOME_SOUNDS classes to class IDs
-        selected_class_id_to_name = class_id_to_label
-        selected_class_names = set(class_id_to_label.values())
-        print(f"Total selected classes: {len(selected_class_names)}")
+        print("Memory before loading data:")
+        print_memory_usage() 
 
-        # selected_class_ids = set()
-        # for class_name in HOME_SOUNDS.keys():
-        #     class_id = get_class_id(class_name, class_label_to_id, name_to_class_id)
-        #     if class_id:
-        #         subclasses = get_all_subclasses(class_id, parent_to_children)
-        #         selected_class_ids.update(subclasses)
-        #     else:
-        #         print(f"Class '{class_name}' not found in ontology.")
-        # Map class IDs back to class names
-        #selected_class_id_to_name = {class_id: id_to_class[class_id]['name'] for class_id in selected_class_ids}
-        #selected_class_names = set(selected_class_id_to_name.values())
-        #print(f"Total selected classes (including descendants): {len(selected_class_ids)}")
+        # Step 2: Map HOME_SOUNDS classes to class IDs
+        selected_class_names = set(HOME_SOUNDS.keys())
+
+        # Actualizar selected_class_id_to_name usando class_label_to_id
+        selected_class_id_to_name = {
+            class_label_to_id[label]: label for label in selected_class_names if label in class_label_to_id
+        }
+
+        print(f"Total selected classes: {len(selected_class_names)}")
 
         # Step 3: Load the prepared data
         print("Loading prepared dataset...")
         log_progress("Starting data loading...")
 
-        #aggregation_level = 'all'  # 'all', 'by_day', 'by_recorder'
-        normalize_data = True      # True para normalizar datos
+        normalize_data = False  # True para normalizar datos
 
         # Cargar los datos preparados
         df_agg = load_prepared_data(aggregation_level, normalize=normalize_data)
+        if df_agg.index.name is None:
+            df_agg.index.name = 'time_bin'
 
-        # Verificar si los datos están disponibles
-        if df_agg.empty:
-            print("No data available after loading. Please check your configuration.")
-            return
+        if aggregation_level == 'by_day':
+            # Convertir el MultiIndex (date, time) a un DatetimeIndex
+            df_agg = df_agg.copy()
+            df_agg.index = [pd.Timestamp(str(d) + ' ' + str(t)) for d, t in df_agg.index]
+            
+        # PUNTO DE INSERCIÓN
+        # Reemplaza la sección actual que maneja el modo 'by_recorder' por este nuevo bloque:
 
-        # Rename class ID columns to class names
+        if aggregation_level == 'by_recorder':
+            # Guardamos el DataFrame original antes de filtrarlo
+            original_df_agg = df_agg.copy()
+
+            # Obtenemos la lista de grabadores realmente presentes
+            recorders_dir = os.path.join('analysis_results', 'data_preparation_granger_results')
+            actual_recorders_in_data = {
+                f for f in os.listdir(recorders_dir) 
+                if os.path.isdir(os.path.join(recorders_dir, f))
+            }
+            recorders_list = sorted(actual_recorders_in_data)
+
+            # Iteramos por cada grabador para analizarlo individualmente como en 'all'
+            for current_recorder in recorders_list:
+                print(f"\n--- Processing by_recorder for recorder: {current_recorder} ---")
+
+                # Filtramos el DataFrame para el grabador actual
+                df_agg = original_df_agg[original_df_agg['recorder'] == current_recorder].copy()
+
+                if df_agg.empty:
+                    print(f"No data found for recorder {current_recorder}. Skipping.")
+                    continue
+
+                # Eliminamos la columna 'recorder'
+                if 'recorder' in df_agg.columns:
+                    df_agg.drop('recorder', axis=1, inplace=True)
+
+                # Cálculo total_possible_slots como en 'all'
+                frame_duration = 0.21333
+                frames_per_minute = 60 / frame_duration
+                total_minutes = len(df_agg)
+                active_recorders_this_period = 1  # Solo un grabador
+                total_possible_slots = active_recorders_this_period * total_minutes * frames_per_minute
+
+                # Filtrar clases sin eventos
+                sum_events_per_class = df_agg.sum()
+                non_empty_classes = sum_events_per_class[sum_events_per_class > 0].index
+                if len(non_empty_classes) == 0:
+                    print("No detected classes to analyze.")
+                    continue
+                df_agg = df_agg[non_empty_classes]
+
+                # Filtrar clases con suficientes eventos
+                threshold = 200
+                enough_events_classes = sum_events_per_class[sum_events_per_class >= threshold].index
+                if len(enough_events_classes) == 0:
+                    print(f"No classes meet the threshold of {threshold} events.")
+                    continue
+                df_agg = df_agg[enough_events_classes]
+                selected_class_ids = set(enough_events_classes)
+
+                # Filtrar solo las clases que existen en la ontología
+                valid_class_ids = selected_class_ids.intersection(class_id_to_label.keys())
+                missing_class_ids = selected_class_ids - valid_class_ids
+                for cid in missing_class_ids:
+                    print(f"Warning: The class ID '{cid}' is present in the data but not in the ontology. Ignoring it.")
+
+                if len(valid_class_ids) == 0:
+                    print("No valid classes found in the ontology. Skipping.")
+                    continue
+
+                # Renombrar las columnas de IDs a labels
+                df_agg = df_agg[list(valid_class_ids)].rename(columns=class_id_to_label)
+
+                # Ahora, las columnas son labels de clases
+                selected_class_labels = set(df_agg.columns)
+
+                # Crear mapping de labels a labels
+                selected_class_id_to_name = {
+                    label: label for label in selected_class_labels
+                }
+
+                # **Verificación de Columnas**
+                print(f"Columns in df_agg: {df_agg.columns.tolist()}")
+
+                # Calcular estadísticas de presencia
+                presence_stats = {}
+                detected_classes = []
+                for label in selected_class_labels:
+                    total_detections = df_agg[label].sum()
+                    detection_percentage = (total_detections / total_possible_slots) * 100
+                    presence_stats[label] = {
+                        'total_detections': int(total_detections),
+                        'detection_percentage': float(detection_percentage)
+                    }
+                    if total_detections > 0:
+                        detected_classes.append(label)
+
+                selected_class_labels = set(detected_classes)
+
+                # Verificar si hay clases a analizar
+                if not selected_class_labels:
+                    print("\nNo detected classes to analyze.")
+                    continue
+
+                # Crear mapping de labels a labels
+                selected_class_id_to_name = {
+                    label: label for label in selected_class_labels
+                }
+
+                # Imprimir la tabla de estadísticas de presencia
+                print("\nSound Presence Statistics:")
+                print("=" * 80)
+                print(f"{'Class ID':<15} {'Class Name':<30} {'Detection %':<12} {'Total Detections'}")
+                print("-" * 80)
+                for label, stats in sorted(presence_stats.items(), key=lambda x: x[1]['detection_percentage'], reverse=True):
+                    if label in selected_class_labels:
+                        print(f"{label:<15} {stats['total_detections']:<30} {stats['detection_percentage']:>8.2f}%    {stats['total_detections']:>8}")
+
+                # Crear directorio de resultados específico por grabador
+                results_dir = os.path.join(BASE_DIR, 'results', aggregation_level, current_recorder)
+                os.makedirs(results_dir, exist_ok=True)
+
+                # Realizar el análisis avanzado usando labels
+                arima_models = fit_arima_models(df_agg, selected_class_id_to_name)
+                cross_correlations = compute_cross_correlations(df_agg, selected_class_id_to_name)
+                cross_corr_results = plot_cross_correlations(cross_correlations, len(df_agg), aggregation_level)
+                if cross_corr_results is None:
+                    cross_corr_results = {
+                        'significant_correlations': [],
+                        'confidence_threshold': None
+                    }
+
+                granger_results = perform_granger_causality_tests(df_agg, selected_class_id_to_name, aggregation_level)
+                pca_results = perform_pca(df_agg, selected_class_id_to_name)
+                save_checkpoint({'pca_results': pca_results}, 'pca')
+                umap_results = perform_umap(df_agg, selected_class_id_to_name)
+                save_checkpoint({'umap_results': umap_results}, 'umap')
+                tsne_results = perform_tsne(df_agg, selected_class_id_to_name)
+                save_checkpoint({'tsne_results': tsne_results}, 'tsne')
+                plot_time_series(df_agg, selected_class_id_to_name, aggregation_level)
+                correlation_matrix = compute_correlations(df_agg, selected_class_id_to_name)
+                save_checkpoint({'correlation_matrix': correlation_matrix}, 'correlations')
+                plot_correlation_matrix(correlation_matrix, aggregation_level)
+                plot_cross_correlations(cross_correlations, len(df_agg), aggregation_level)
+                plot_pca_results(pca_results, selected_class_id_to_name, aggregation_level)
+                plot_umap_results(umap_results, df_agg, selected_class_id_to_name, aggregation_level)
+                plot_tsne_results(tsne_results, df_agg, selected_class_id_to_name, aggregation_level)
+                create_umap_animation(df_agg, selected_class_id_to_name, aggregation_level, window_minutes=15)
+
+                # Guardar el summary con el nombre del grabador
+                summary = {}
+                summary.update({
+                    'dataset': {
+                        'total_classes': len(selected_class_labels),
+                        'classes_analyzed': list(selected_class_labels)
+                    },
+                    'time_series': {
+                        'bin_size': bin_size,
+                        'total_bins': len(df_agg),
+                        'non_empty_bins_percent': (df_agg > 0).mean().to_dict()
+                    },
+                    'models': {
+                        'successful_arima_fits': len(arima_models),
+                        'pca_variance': float(pca_results['explained_variance'][0])
+                    },
+                    'presence_stats': {
+                        label: stats
+                        for label, stats in presence_stats.items()
+                        if label in selected_class_labels
+                    },
+                    'correlation_analysis': {
+                        'significant_correlations': cross_corr_results['significant_correlations'],
+                        'total_correlations_found': len(cross_corr_results['significant_correlations']),
+                        'confidence_threshold': cross_corr_results['confidence_threshold']
+                    }
+                })
+
+                if granger_results:
+                    summary['granger_analysis'] = {
+                        'total_relationships_tested': granger_results['summary']['total_tests'],
+                        'significant_relationships': granger_results['summary']['significant_relationships'],
+                        'most_causal_sounds': [k for k, v in Counter(
+                            rel['cause'] for rel in granger_results['significant_relationships']
+                        ).most_common(5)],
+                        'most_dependent_sounds': [k for k, v in Counter(
+                            rel['effect'] for rel in granger_results['significant_relationships']
+                        ).most_common(5)]
+                    }
+
+                # Guardar el summary
+                with open(os.path.join(results_dir, f'analysis_summary_{aggregation_level}_{current_recorder}.json'), 'w') as f:
+                    json.dump(summary, f, indent=2)
+
+
+
+
+        df_agg.sort_index(inplace=True)
+        D = df_agg.index.normalize().nunique()
+        recorders_dir = os.path.join('analysis_results', 'data_preparation_granger_results')
+        actual_recorders_in_data = {
+            f for f in os.listdir(recorders_dir) 
+            if os.path.isdir(os.path.join(recorders_dir, f))
+        }
+
+        frame_duration = 0.21333
+        frames_per_minute = 60 / frame_duration
+        total_minutes = len(df_agg)
+        F = total_minutes * frames_per_minute
+        df_agg['hour'] = df_agg.index.hour
+
+        # Si estamos en modo by_recorder, debemos definir current_recorder antes de calcular total_possible_slots
+        if aggregation_level == 'by_recorder':
+            if len(actual_recorders_in_data) != 1:
+                print("Error: by_recorder mode expects exactly one recorder in the dataset.")
+                continue
+            current_recorder = list(actual_recorders_in_data)[0]
+
+        active_hour_file = os.path.join('analysis_results', 'recording_times', 'recorders_active_per_hour.json')
+        with open(active_hour_file, 'r') as f:
+            active_recorders_per_hour = json.load(f)
+
+        total_possible_slots = 0.0
+        for hour_val in df_agg['hour'].unique():
+            hour_str = f"{hour_val:02d}"
+            if hour_str in active_recorders_per_hour:
+                hour_recorders_set = set(active_recorders_per_hour[hour_str])
+                if aggregation_level == 'by_recorder':
+                    # Aquí usamos current_recorder, ya está definido arriba
+                    active_recorders_this_hour = 1 if current_recorder in hour_recorders_set else 0
+                else:
+                    actual_active_recorders = hour_recorders_set.intersection(actual_recorders_in_data)
+                    active_recorders_this_hour = len(actual_active_recorders)
+            else:
+                active_recorders_this_hour = 0
+
+            minutes_count = (df_agg['hour'] == hour_val).sum()
+            hour_frames = minutes_count * frames_per_minute
+            total_possible_slots += active_recorders_this_hour * hour_frames
+
+
+        df_agg.drop('hour', axis=1, inplace=True)
+
+        # Verificar las dimensiones del DataFrame
+        print(f"Dimensiones del DataFrame: {df_agg.shape}")
+
+        # Mostrar un resumen del DataFrame
+        print("\nInformación del DataFrame:")
+        print(df_agg.info())
+
+        # Mostrar las primeras filas para asegurarte de que los datos están correctamente cargados
+        print("\nPrimeras filas del DataFrame:")
+        print(df_agg.head())
+
+        # Mostrar si hay valores nulos
+        print("\nValores nulos por columna:")
+        print(df_agg.isnull().sum())
+
+        # Renombrar columnas de IDs a nombres de clases antes de filtrar
         df_agg.rename(columns=class_id_to_label, inplace=True)
 
+        # DEBUG START
+        print("Columnas tras renombrar:")
+        print("Total columnas en df_agg:", len(df_agg.columns))
+        print("Primeras 10 columnas:", df_agg.columns[:10])
+        # DEBUG END
+
+        # Actualizar selected_class_names para que coincida con las columnas disponibles
+        available_columns = set(df_agg.columns)
+        # DEBUG START
+        missing_classes = selected_class_names - available_columns
+        print("Clases seleccionadas:", len(selected_class_names))
+        print("Columnas disponibles tras renombrar:", len(available_columns))
+        print("Clases faltantes tras renombrar:", missing_classes)
+        if missing_classes:
+            print("Ejemplo de clases faltantes:", list(missing_classes)[:10])
+        # DEBUG END
+        valid_columns = selected_class_names.intersection(available_columns)
+
+        if len(valid_columns) == 0:
+            print("Error: None of the selected classes are present in the data")
+            continue  # Saltar a la siguiente iteración si no hay clases válidas
+
+        print(f"\nFound {len(valid_columns)} valid classes out of {len(selected_class_names)} selected")
+
+        if aggregation_level == 'by_recorder':
+            keep_cols = list(valid_columns)
+            if 'recorder' in df_agg.columns and 'recorder' not in keep_cols:
+                keep_cols.append('recorder')
+            df_agg = df_agg[keep_cols]
+        else:
+            df_agg = df_agg[list(valid_columns)]
+
+        if aggregation_level == 'by_recorder':
+            df_agg = df_agg.groupby(df_agg.index).sum()
+
+        # Actualizar las clases seleccionadas
+        selected_class_names = valid_columns
+        selected_class_id_to_name = {
+            class_label_to_id[label]: label for label in selected_class_names
+        }
+
+        print("\nMemory after loading data:")
+        print_memory_usage()
+        
         # Set index name to 'time_bin'
         df_agg.index.name = 'time_bin'
 
-        # Update 'available_classes' based on the columns present in df_agg
-        available_classes = [col for col in df_agg.columns if col in selected_class_names]
+        # Antes de filtrar clases sin eventos:
+        if 'recorder' in df_agg.columns:
+            recorder_col = df_agg['recorder']
+            df_agg = df_agg.drop('recorder', axis=1)
 
-        # Filter df_agg to include only the selected classes
-        df_agg = df_agg[available_classes]
+        # Filtrar clases sin eventos
+        sum_events_per_class = df_agg.sum()
+        non_empty_classes = sum_events_per_class[sum_events_per_class > 0].index
+        if len(non_empty_classes) == 0:
+            print("No detected classes to analyze.")
+            continue
+        df_agg = df_agg[non_empty_classes]
+        if 'recorder_col' in locals():
+            df_agg['recorder'] = recorder_col
+        selected_class_names = set(non_empty_classes)
 
-        # Ensure the time series is sorted by time
-        df_agg.sort_index(inplace=True)
+        threshold = 200  # Ajusta según tus necesidades
+        enough_events_classes = sum_events_per_class[sum_events_per_class >= threshold].index
+        if len(enough_events_classes) == 0:
+            print(f"No classes meet the threshold of {threshold} events.")
+            continue
 
-        # Calcular presence_stats directamente desde df_agg
+        df_agg = df_agg[enough_events_classes]
+        selected_class_names = set(enough_events_classes)
+
+        # Calculate presence statistics
         presence_stats = {}
-        total_time_bins = len(df_agg)
-        for class_name in available_classes:
+        detected_classes = []
+
+        for class_name in selected_class_names:
             total_detections = df_agg[class_name].sum()
-            presence_ratio = (df_agg[class_name] > 0).sum() / total_time_bins
+            detection_percentage = (total_detections / total_possible_slots) * 100
+
             presence_stats[class_name] = {
                 'total_detections': int(total_detections),
-                'presence_ratio': float(presence_ratio)
+                'detection_percentage': float(detection_percentage)
             }
 
-        print(f"Aggregation Level: {aggregation_level}")
-        if aggregation_level == 'by_day':
-            print("Data is aggregated by day.")
-            # Optionally, print the days included in the analysis
-            print(f"Days included in analysis: {df_agg.index.get_level_values('date').unique()}")
-        elif aggregation_level == 'by_recorder':
-            print("Data is aggregated by day and recorder.")
-            # Optionally, print the recorders included
-            print(f"Recorders included in analysis: {df_agg.index.get_level_values('recorder_id').unique()}")
-        else:
-            print("Data is aggregated across all data.")
+            if total_detections > 0:
+                detected_classes.append(class_name)
 
-        # Imprimir estadísticas detalladas
+        # Update selected_class_names to only include detected classes
+        selected_class_names = set(detected_classes)
+        selected_class_id_to_name = {
+            class_label_to_id[label]: label for label in selected_class_names
+        }
+
         print("\nSound Presence Statistics:")
         print("=" * 80)
-        print(f"{'Class Name':<30} {'Presence %':<12} {'Total Detections'}")
+        print(f"{'Class Name':<30} {'Detection %':<12} {'Total Detections'}")
         print("-" * 80)
 
         for class_name, stats in sorted(
-            presence_stats.items(), 
-            key=lambda x: x[1]['presence_ratio'], 
+            presence_stats.items(),
+            key=lambda x: x[1]['detection_percentage'],
             reverse=True
         ):
-            print(f"{class_name:<30} {stats['presence_ratio']*100:>8.2f}%    {stats['total_detections']:>8}")
+            print(f"{class_name:<30} {stats['detection_percentage']:>8.2f}%    {stats['total_detections']:>8}")
 
-        # Continuar con el análisis
-        print(f"\nProceeding with analysis for {len(available_classes)} available classes:")
-        for name in sorted(available_classes):
-            print(f"  - {name}")
+        # Continuar con el análisis si hay clases detectadas
+        if not selected_class_names:
+            print("\nNo detected classes to analyze. Skipping to next aggregation level.")
+            continue
+
+        print(f"\nProceeding with analysis for {len(selected_class_names)} available classes:")
 
         # Step 4: Perform data analysis
         print("\nPerforming data analysis...")
 
-        # Normalizar si es necesario
-        if normalize_by_recorders and selected_recorders:
-            num_recorders = len(selected_recorders)
-            df_agg[available_classes] /= num_recorders
-
         # Asegurarse de que la serie temporal esté ordenada por tiempo
         df_agg.sort_index(inplace=True)
-
-        # Set 'time_bin' as index
-        print("Rango de tiempo en df_agg:")
-        print(f"Inicio: {df_agg.index.min()}")
-        print(f"Fin: {df_agg.index.max()}")
-        print(f"Total de registros: {len(df_agg)}")
-        print(f"Tipo de índice de df_agg: {type(df_agg.index)}")
-        print(f"Frecuencia del índice antes de inferir: {df_agg.index.freq}")
-        print(f"Primeros 5 valores del índice:\n{df_agg.index[:5]}")
-        print(f"Diferencia entre los dos primeros índices: {df_agg.index[1] - df_agg.index[0]}")
-        print("Conteo de registros por marca de tiempo en df_agg:")
-        print(df_agg.index.value_counts())
         df_agg.index.freq = pd.infer_freq(df_agg.index)
-        print(f"Frecuencia del índice después de inferir: {df_agg.index.freq}")
 
         # Step 5: Advanced Analyses
         log_progress("Starting statistical analysis...")
@@ -323,22 +648,16 @@ def main():
         plot_umap_results(umap_results, df_agg, selected_class_id_to_name, aggregation_level)
         plot_tsne_results(tsne_results, df_agg, selected_class_id_to_name, aggregation_level)
 
-        #df_agg = df_agg.asfreq('T')
         # Create UMAP animation over time
         print(f"df_agg before animation:\n{df_agg.head()}")
         print(f"df_agg index frequency: {df_agg.index.freq}")
-        ani = create_umap_animation(df_agg, selected_class_id_to_name, aggregation_level, window_minutes=15)
-        if ani is not None:
-            # Save the animation in GIF format
-            ani.save(os.path.join(BASE_DIR, 'figures', aggregation_level, f'umap_animation_{aggregation_level}.gif'), writer='imagemagick')
-        else:
-            print("UMAP animation was not generated due to lack of frames.")
+        create_umap_animation(df_agg, selected_class_id_to_name, aggregation_level, window_minutes=15)
 
         # Save analysis summary
         summary.update({
             'dataset': {
-                'total_classes': len(available_classes),
-                'classes_analyzed': list(available_classes)
+                'total_classes': len(selected_class_names),
+                'classes_analyzed': list(selected_class_names)
             },
             'time_series': {
                 'bin_size': bin_size,
@@ -350,13 +669,12 @@ def main():
                 'pca_variance': float(pca_results['explained_variance'][0])
             }
         })
-        # Add presence statistics with thresholds
+
+        # Add presence statistics
         summary['presence_stats'] = {
-            class_name: {
-                'presence_ratio': float(stats['presence_ratio']),
-                'total_detections': int(stats['total_detections'])
-            }
+            class_name: stats
             for class_name, stats in presence_stats.items()
+            if class_name in selected_class_names
         }
 
         # Add correlation analysis
@@ -378,26 +696,49 @@ def main():
                     rel['effect'] for rel in granger_results['significant_relationships']
                 ).most_common(5)]
             }
-        
-        os.makedirs(os.path.join(BASE_DIR, 'results'), exist_ok=True)
-        with open(os.path.join(BASE_DIR, 'results', f'analysis_summary_{aggregation_level}.json'), 'w') as f:
+
+        results_dir = os.path.join(BASE_DIR, 'results', aggregation_level)
+        os.makedirs(results_dir, exist_ok=True)
+        with open(os.path.join(results_dir, f'analysis_summary_{aggregation_level}.json'), 'w') as f:
             json.dump(summary, f, indent=2)
 
         total_time = (time.time() - start_time) / 3600
         print(f"\nFinal processing time: {total_time:.1f} hours")
 
+        print("\nCleaning memory...")
+        import gc
+        gc.collect()
+        print_memory_usage()
+
+
 def fit_arima_models(df_agg, selected_class_id_to_name):
     from statsmodels.tsa.arima.model import ARIMA
     from statsmodels.tsa.stattools import adfuller
+    import warnings
+    
     arima_models = {}
     print("\nTime Series Analysis")
     print(f"Resolution: {len(df_agg)} minute-level samples")
 
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=UserWarning)
+
+    # Create a copy of the data with proper frequency
     df_local = df_agg.copy()
-    df_local.index = pd.date_range(start=df_agg.index[0], periods=len(df_agg), freq='T')  # 'T' for minute frequency
+    
+    # First ensure index is datetime
+    df_local.index = pd.to_datetime(df_local.index)
+    
+    # Create a proper datetime index with minute frequency
+    new_index = pd.date_range(start=df_local.index.min(),
+                            end=df_local.index.max(),
+                            freq='T')  # 'T' means minute frequency
+                            
+    # Reindex the DataFrame
+    df_local = df_local.reindex(new_index)
 
     for cls in selected_class_id_to_name.values():
-        ts = df_agg[cls].fillna(0)
+        ts = df_local[cls].fillna(0)
         
         # Check minimum data requirements
         if ts.std() == 0:
@@ -422,7 +763,7 @@ def fit_arima_models(df_agg, selected_class_id_to_name):
             arima_models[cls] = model_fit
             print(f"✓ {cls} - {'Stationary' if is_stationary else 'Non-stationary'}")
         except Exception as e:
-            print(f"✗ {cls}")
+            print(f"✗ {cls} - Error: {str(e)}")
             
     return arima_models
 
@@ -505,8 +846,9 @@ def perform_granger_causality_tests(df_agg, selected_class_id_to_name, aggregati
                                 min_pvalue = pvalue
                                 best_lag = lag
                         
-                        # If significant at 0.05 level
-                        if min_pvalue < 0.05:
+                        # If significant at 0.05 level and P-value is relevant
+                        RELEVANT_PVALUE_THRESHOLD = 0.01
+                        if min_pvalue > RELEVANT_PVALUE_THRESHOLD:
                             significant_relationships.append({
                                 'cause': cls1,
                                 'effect': cls2,
@@ -746,6 +1088,21 @@ def create_umap_animation(df_agg, selected_class_id_to_name, aggregation_level, 
     import numpy as np
     import pickle  # For saving intermediate data
 
+    print("\nStarting UMAP animation generation...")
+    print(f"Initial DataFrame shape: {df_agg.shape}")
+    
+    # Diagnostic information
+    print("\nDataFrame information:")
+    print(df_agg.info())
+    print("\nDataFrame sample:")
+    print(df_agg.head())
+    print("\nIndex details:")
+    print(df_agg.index)
+    print("\nTime distribution:")
+    print(df_agg.index.value_counts().sort_index()[:10])
+    print("\nGaps in time series:")
+    print(pd.Series(df_agg.index).diff().value_counts().sort_index()[:10])
+
     # Initialize lists to store intermediate data
     embeddings_list = []
     time_bins = []
@@ -755,7 +1112,6 @@ def create_umap_animation(df_agg, selected_class_id_to_name, aggregation_level, 
     # Convert index to datetime if needed and sort
     df_agg.index = pd.to_datetime(df_agg.index)
     df_agg = df_agg.sort_index()
-    df_agg.index.freq = pd.infer_freq(df_agg.index)
 
     print("\nTime range in data:")
     print(f"Start: {df_agg.index.min()}")
@@ -1010,9 +1366,15 @@ if __name__ == '__main__':
         # After full analysis, generate video for each aggregation level
         for aggregation_level in AGGREGATION_LEVELS:
             intermediate_file = os.path.join(BASE_DIR, 'results', aggregation_level, f'umap_intermediate_data_{aggregation_level}.pkl')
+            if not os.path.exists(intermediate_file):
+                print(f"No intermediate file found for {aggregation_level}, skipping video generation.")
+                continue
             generate_video_from_intermediate_data(intermediate_file, aggregation_level, title=f"UMAP Animation - {aggregation_level}", legend=True)
     else:
         # Only generate the video from intermediate data for each aggregation level
         for aggregation_level in AGGREGATION_LEVELS:
             intermediate_file = os.path.join(BASE_DIR, 'results', aggregation_level, f'umap_intermediate_data_{aggregation_level}.pkl')
+            if not os.path.exists(intermediate_file):
+                print(f"No intermediate file found for {aggregation_level}, skipping video generation.")
+                continue
             generate_video_from_intermediate_data(intermediate_file, aggregation_level, title=f"UMAP Animation - {aggregation_level}", legend=True)

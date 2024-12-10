@@ -2,11 +2,14 @@
 
 import os
 import json
+import sys
 import datetime
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(project_root)
 import src.config as config
 from src.data_processing.utils import extract_datetime_from_filename
 from src.data_processing.load_data import load_class_labels
@@ -14,29 +17,33 @@ from src.data_processing.process_data import compute_class_thresholds
 
 def load_prepared_data(aggregation_level, normalize=False):
     """
-    Carga los datos de los archivos intermedios y agrega según el nivel especificado.
+    Loads data from intermediate files and aggregates according to specified level.
 
     Args:
         aggregation_level (str): 'all', 'by_day', 'by_recorder'
-        normalize (bool): Determina si se normalizan los datos cuando hay grabadores sin muestras.
+        normalize (bool): Whether to normalize data when recorders are missing samples.
 
     Returns:
-        pd.DataFrame: Datos agregados
+        pd.DataFrame: Aggregated data with dimensions:
+            - all: 1050x527 (minutes x classes)
+            - by_day: (7350x527) (minutes per day x classes)
+            - by_recorder: (no aggregation)
     """
     import pandas as pd
     from src.data_processing.load_data import load_class_labels
 
-    # Cargar todas las clases (527)
+    # Load class labels
     class_label_to_id, class_id_to_label = load_class_labels(config.CLASS_LABELS_CSV_PATH)
     all_class_ids = set(class_id_to_label.keys())
-
+    
+    # Load data from all recorders
     data_frames = []
     recorders_dir = os.path.join('analysis_results', 'data_preparation_granger_results')
     recorder_folders = [f for f in os.listdir(recorders_dir) if os.path.isdir(os.path.join(recorders_dir, f))]
     total_recorders = len(recorder_folders)
 
     if total_recorders == 0:
-        print("No se encontraron datos en los archivos intermedios.")
+        print("No data found in intermediate files.")
         return pd.DataFrame()
 
     for recorder_folder in recorder_folders:
@@ -52,83 +59,55 @@ def load_prepared_data(aggregation_level, normalize=False):
             df['recorder'] = recorder_folder
             data_frames.append(df)
         else:
-            print(f"No se encontró 'minute_counts.json' en {recorder_path}")
+            print(f"Could not find 'minute_counts.json' in {recorder_path}")
 
     if not data_frames:
-        print("No se pudieron cargar datos de los grabadores.")
+        print("No data could be loaded from recorders.")
         return pd.DataFrame()
 
-    # Concatenate data frames
+    # Concatenate all data
     full_df = pd.concat(data_frames, axis=0, sort=True)
 
-    # Convert class IDs to columns, fill missing classes with zeros
+    # Ensure all class columns exist
     for class_id in all_class_ids:
         if class_id not in full_df.columns:
             full_df[class_id] = 0
 
+    # Perform aggregation based on mode
+    class_columns = [col for col in full_df.columns if col in all_class_ids]
+    
     if aggregation_level == 'all':
-        # Aggregate over all recorders and days
-        grouped = full_df.groupby(full_df.index).sum()
+        # Sum across all days and recorders for each minute of the day
+        base_date = full_df.index.date.min()
+        full_df['minute_of_day'] = full_df.index.time
+        grouped = full_df.groupby('minute_of_day')[class_columns].sum()
+        
+        # Create proper datetime index for the aggregated data
+        new_index = pd.DatetimeIndex([datetime.datetime.combine(base_date, time) 
+                                    for time in grouped.index])
+        grouped.index = new_index
+        
     elif aggregation_level == 'by_day':
-        # Keep days independent
+        # Sum across recorders but keep days separate
         full_df['date'] = full_df.index.date
-        grouped = full_df.groupby(['date', full_df.index.time]).sum()
+        full_df['time'] = full_df.index.time
+        grouped = full_df.groupby(['date', 'time'])[class_columns].sum()
+        
     elif aggregation_level == 'by_recorder':
-        # Keep recorders and days independent
-        grouped = full_df
+        # No aggregation
+        grouped = full_df[class_columns + ['recorder']]
+        
     else:
-        raise ValueError("Invalid aggregation level")
+        raise ValueError(f"Invalid aggregation level: {aggregation_level}")
 
+    # Apply normalization if requested
     if normalize:
-        # Normalization process
-        # For each time bin, adjust counts based on the number of active recorders
-        grouped = grouped.reset_index()
-        if 'recorder' in grouped.columns:
-            # When aggregation_level is 'by_recorder', we need to group further
-            time_bins = grouped['index'].unique()
-            normalized_data = []
+        active_recorders = len(recorder_folders)
+        if active_recorders > 0:
+            norm_factor = total_recorders / active_recorders
+            grouped[class_columns] *= norm_factor
 
-            for time_bin in time_bins:
-                time_bin_data = grouped[grouped['index'] == time_bin]
-                num_active_recorders = time_bin_data['recorder'].nunique()
-                norm_factor = total_recorders / num_active_recorders if num_active_recorders > 0 else 1
-
-                # Apply normalization to each class column
-                class_columns = [col for col in time_bin_data.columns if col.startswith('/m/')]
-                time_bin_data[class_columns] = time_bin_data[class_columns] * norm_factor
-
-                normalized_data.append(time_bin_data)
-
-            grouped = pd.concat(normalized_data, axis=0)
-            grouped.set_index('index', inplace=True)
-        else:
-            # For other aggregation levels
-            time_bins = grouped.index.unique()
-            normalized_data = []
-
-            for time_bin in time_bins:
-                time_bin_data = grouped.loc[time_bin]
-                num_active_recorders = len(recorder_folders)
-                norm_factor = total_recorders / num_active_recorders if num_active_recorders > 0 else 1
-
-                # Apply normalization
-                class_columns = [col for col in grouped.columns if col.startswith('/m/')]
-                time_bin_data[class_columns] = time_bin_data[class_columns] * norm_factor
-
-                normalized_data.append(time_bin_data)
-
-            grouped = pd.DataFrame(normalized_data, index=time_bins)
-
-    else:
-        # Fill missing values with zero (assuming no events occurred)
-        grouped = grouped.fillna(0)
-
-    # Optionally, convert class IDs to class names
-    # class_id_to_label = {v: k for k, v in class_label_to_id.items()}
-    # grouped.rename(columns=class_id_to_label, inplace=True)
-
-    return grouped
-
+    return grouped.fillna(0)
 
 def process_json_file(file_path, class_thresholds, class_label_to_id):
     """
@@ -142,7 +121,7 @@ def process_json_file(file_path, class_thresholds, class_label_to_id):
             data = json.load(f)
 
         is_light = '_light.json' in file_path
-        increment = 32 if is_light else 1
+        increment = 1#32 if is_light else 1
 
         for frame in data:
             if isinstance(frame, dict) and ('predictions' in frame):
