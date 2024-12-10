@@ -68,7 +68,7 @@ The `batch_analysis.py` script performs analysis across multiple confidence thre
 - Variable threshold: Adapts based on [AudioSet label quality](https://research.google.com/audioset/download.html#quality:~:text=Quality%20Assessment%20and%20rerating)
   - Uses linear interpolation:
     ```python
-    threshold = 0.2 + (0.5 - 0.2) * (label_quality / 100)
+    threshold = 0.1 + (0.35 - 0.1) * (label_quality / 100)
     ```
   - Example:
     - For 100% quality label: threshold = 0.5
